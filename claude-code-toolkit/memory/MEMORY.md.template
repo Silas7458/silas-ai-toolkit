@@ -1,0 +1,44 @@
+# Auto Memory
+
+## CENTRAL CONFIG REFERENCE (PERMANENT)
+**All credentials, API keys, and secrets are in ONE file:**
+`[YOUR_CONTEXT_DIR]/config.json`
+Read this FIRST before searching elsewhere or asking the user.
+
+## SEQUENTIAL TASK COMPLETION (PERMANENT)
+**When the user gives a numbered list of tasks or says "do 1 through N", DO ALL OF THEM IN SEQUENCE.** Do not stop after item 1 and ask "what's next?" Complete the list unless genuinely blocked.
+- If an item is blocked, skip it, say why, and continue to the next.
+- Do not ask permission between items. The permission was the original instruction.
+
+## ERROR RECOVERY -- NEVER FREEZE (PERMANENT)
+**When a tool call returns an error (API 500, timeout, connection failure), DO NOT STOP.**
+- Retry once -- transient errors often resolve on immediate retry
+- If retry fails, pivot to a different tool or approach
+- If the error is on a non-critical step, skip it and continue
+- ALWAYS tell the user what happened
+- NEVER silently stop working
+
+## SESSION-STATE IS PRIMARY ON RESTART (PERMANENT)
+**session-state.md is the MOST CURRENT source of truth.** On every restart:
+1. Read `session-state.md` FIRST -- it has exactly where we left off
+2. Trust what it says -- do not re-research things it documents as complete
+3. Other briefing files are supplementary, NOT primary for "where we left off"
+
+## AGENT-FIRST PROTOCOL (PERMANENT)
+**Default to spinning up agents for ALL heavy lifting.** Main context is reserved for: understanding agent results, relaying to user, coordinating, and making decisions.
+- Research tasks: Always agent
+- Document building (.docx, .xlsx): Always agent
+- Web searches: Always agent
+- File analysis (>80 lines, need summary only): Always agent
+- File reads for editing (<80 lines): Do it yourself
+- Git ops, communication, state updates: Do it yourself
+- **Decision rule:** "Will raw output be >500 tokens and I only need a summary?" --> Agent.
+
+## PLAYBOOKS DIRECTORY (PERMANENT)
+**How-to procedures and accumulated knowledge live in:** `[YOUR_DOCUMENTS_DIR]/playbooks/`
+Check here FIRST when asked about a known capability or procedure.
+
+## [YOUR_PROJECT] REPO (PERMANENT)
+**Project repository:** `[YOUR_REPO_URL]`
+**Local clone:** `[YOUR_LOCAL_REPO_PATH]`
+**Pattern:** [describe your project conventions here]

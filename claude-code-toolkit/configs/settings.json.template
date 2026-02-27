@@ -1,0 +1,115 @@
+{
+  "// ENVIRONMENT VARIABLES": "Set env vars that Claude Code and its agents inherit",
+  "env": {
+    "// Database URL for any persistent storage needs": "",
+    "CONTINUOUS_CLAUDE_DB_URL": "[YOUR_DATABASE_URL]",
+
+    "// Enable experimental agent teams feature": "",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+
+    "// Enable MCP tool search": "",
+    "ENABLE_TOOL_SEARCH": "true"
+  },
+
+  "// PERMISSIONS": "Control what Claude Code can do without asking",
+  "permissions": {
+    "// Options: 'bypassPermissions' (fastest), 'allowEdits' (moderate), 'askEveryTime' (safest)": "",
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "MultiEdit(*)",
+      "WebSearch(*)",
+      "WebFetch(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "mcp__*"
+    ]
+  },
+
+  "// HOOKS": "Custom code that runs at specific lifecycle points",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "// PURPOSE": "Run any initialization logic when a session starts",
+            "type": "command",
+            "command": "node \"[YOUR_HOOKS_DIR]/session-start.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "// PURPOSE": "Inject relevant memory context before each prompt is processed",
+            "type": "command",
+            "command": "node \"[YOUR_HOOKS_DIR]/memory-awareness.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "// PURPOSE": "Track which agent/session last edited each file (useful for multi-agent)",
+            "type": "command",
+            "command": "node \"[YOUR_HOOKS_DIR]/file-claims.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "// EXAMPLE": "Run cleanup after specific tool uses",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"[YOUR_HOOKS_DIR]/post-bash-cleanup.js\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+
+  "// STATUS LINE": "Custom status bar content",
+  "statusLine": {
+    "type": "command",
+    "command": "node \"[YOUR_HOOKS_DIR]/statusline.js\""
+  },
+
+  "// PLUGINS": "Enable/disable official and community plugins",
+  "enabledPlugins": {
+    "// Official plugins": "",
+    "feature-dev@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "pr-review-toolkit@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+
+    "// Disabled plugins (set to true to enable)": "",
+    "frontend-design@claude-plugins-official": false,
+    "hookify@claude-plugins-official": false,
+    "playground@claude-plugins-official": false,
+    "plugin-dev@claude-plugins-official": false,
+    "security-guidance@claude-plugins-official": false
+  },
+
+  "// AUTO-UPDATES": "Which release channel to follow",
+  "autoUpdatesChannel": "latest",
+
+  "// BYPASS DANGEROUS MODE PROMPT": "Skip the confirmation when entering bypass mode",
+  "skipDangerousModePermissionPrompt": true
+}

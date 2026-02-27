@@ -1,0 +1,92 @@
+{
+  "mcpServers": {
+
+    "// ------ TIER 1: HIGH VALUE (no secrets required for Playwright) ------": "",
+
+    "playwright": {
+      "// WHY": "Browser automation -- web scraping, testing, research, form filling. One of the most useful MCP servers. No API key needed.",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ],
+      "env": {}
+    },
+
+    "MCP_DOCKER": {
+      "// WHY": "Docker MCP Gateway -- gives Claude access to databases, memory servers, sequential thinking, and any Docker-hosted MCP service. Requires Docker Desktop.",
+      "command": "docker",
+      "args": [
+        "mcp",
+        "gateway",
+        "run"
+      ],
+      "env": {
+        "LOCALAPPDATA": "[YOUR_LOCAL_APPDATA_PATH]",
+        "ProgramData": "[YOUR_PROGRAMDATA_PATH]",
+        "ProgramFiles": "[YOUR_PROGRAMFILES_PATH]"
+      }
+    },
+
+    "// ------ TIER 2: TEAM/COMMUNICATION ------": "",
+
+    "discord-mcp": {
+      "// WHY": "Discord integration -- send/read messages, manage channels. Essential for multi-agent coordination where agents communicate via Discord channels.",
+      "type": "stdio",
+      "command": "[YOUR_JAVA_PATH]/java.exe",
+      "args": [
+        "-jar",
+        "[YOUR_DISCORD_MCP_JAR_PATH]/discord-mcp.jar"
+      ],
+      "env": {
+        "DISCORD_TOKEN": "[YOUR_DISCORD_BOT_TOKEN]",
+        "DISCORD_GUILD_ID": "[YOUR_DISCORD_SERVER_ID]"
+      }
+    },
+
+    "google-drive-mcp": {
+      "// WHY": "Google Drive integration -- read/write documents, sheets, slides. Useful for deliverable management and cross-session document persistence.",
+      "type": "stdio",
+      "command": "[YOUR_GOOGLE_DRIVE_MCP_START_SCRIPT]",
+      "args": [],
+      "env": {
+        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "[YOUR_OAUTH_CREDENTIALS_PATH]/client_secret.json"
+      }
+    },
+
+    "// ------ TIER 3: PLATFORM-SPECIFIC ------": "",
+
+    "windows-mcp": {
+      "// WHY": "Windows desktop automation -- screenshots, window management, clicking, typing, scrolling. Essential for multi-agent setups where one Claude instance monitors another's window. Windows only.",
+      "type": "stdio",
+      "command": "[YOUR_UVX_PATH]/uvx.exe",
+      "args": [
+        "--from",
+        "windows-mcp<2",
+        "--with",
+        "fastmcp<3",
+        "windows-mcp"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+
+    "n8n-mcp": {
+      "// WHY": "n8n workflow automation integration -- search nodes, templates, validate workflows. Useful if you use n8n for automation.",
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "n8n-mcp"
+      ],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true"
+      }
+    }
+  }
+}

@@ -10,6 +10,7 @@ This is a growing collection of practical AI tools for document processing, vide
 
 | Tool | Description |
 |------|-------------|
+| [claude-code-toolkit](./claude-code-toolkit/) | **Claude Code Power User Toolkit** -- Complete blueprint for configuring Claude Code as a power-user engineering assistant. Includes CLAUDE.md templates, MCP server configs, agent delegation protocols, session management, playbooks, and real-world examples. |
 | [rlm-query](./rlm-query/) | Query large documents using Recursive Language Models (RLM) with Anthropic Claude. Beats context rot -- GPT-4o mini + RLM outscored full GPT-4o by 34 points on long-document benchmarks. |
 | [tiktok-pipeline](./tiktok-pipeline/) | End-to-end TikTok video analysis: download, extract keyframes (every 3s), Whisper transcription, and synced digest generation. |
 | [youtube-pipeline](./youtube-pipeline/) | YouTube video analysis pipeline: download, extract keyframes (every 15s for longer content), Whisper transcription, and synced digest generation. |
