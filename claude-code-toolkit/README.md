@@ -19,6 +19,8 @@ A fresh Claude Code install gives you a capable coding assistant. This toolkit t
 | **MCP integrations** | None configured | Browser automation, Discord, Google Drive, databases, desktop control |
 | **Memory system** | Basic auto-memory | Structured memory with permanent lessons, error recovery patterns |
 | **Quality standards** | Default behavior | Prime Directive enforces 100% completion, no lazy omissions |
+| **Agent prompt templates** | Ad-hoc prompts, inconsistent quality | 10 battle-tested templates with built-in quality guardrails |
+| **Deliverable coordination** | Files scattered everywhere | Shared folder, naming convention, Discord announcements |
 | **Playbooks** | Learning from scratch each session | Accumulated hard-won lessons from real failures |
 
 ---
@@ -43,6 +45,19 @@ claude-code-toolkit/
 │   ├── claude.json.template           # MCP server configuration template
 │   ├── settings.json.template         # Claude Code settings and hooks template
 │   └── README.md                      # Config file explanations
+├── agent-prompts/
+│   ├── _base-rules.md                 # 10 mandatory quality rules for ALL agents
+│   ├── INDEX.md                       # Template catalog with usage guide
+│   ├── 01-video-analyzer.md           # Video content analysis (keyframes + transcript)
+│   ├── 02-stack-evaluator.md          # Tool/repo evaluation against installed stack
+│   ├── 03-deep-comparison.md          # Merge multiple sources into one brief
+│   ├── 04-research-synthesizer.md     # Consolidate parallel agent outputs
+│   ├── 05-code-builder.md             # Build + verify working code
+│   ├── 06-document-builder.md         # Professional .docx/.xlsx creation
+│   ├── 07-codebase-explorer.md        # Map unfamiliar codebase architecture
+│   ├── 08-web-researcher.md           # Multi-source web research with validation
+│   ├── 09-audit-reviewer.md           # Thorough code/security/PR review
+│   └── 10-deliverable-qa.md           # Final quality gate before delivery
 ├── playbooks/
 │   ├── context-conservation.md        # Agent-first protocol (the crown jewel)
 │   ├── lessons-learned.md             # Hard-won lessons from real failures
@@ -110,6 +125,34 @@ Model Context Protocol (MCP) servers give Claude Code access to external tools a
 - **n8n** -- Workflow automation integration
 
 See [configs/claude.json.template](./configs/claude.json.template) for configuration details.
+
+### Agent Prompt Templates -- Consistent Quality at Scale
+
+When you delegate work to sub-agents, the quality of the output depends entirely on the quality of the prompt. Ad-hoc prompts produce inconsistent results -- agents skip steps, miss visual content, deliver incomplete work, or fabricate data.
+
+This toolkit includes **10 reusable prompt templates** that solve this permanently. Each template includes:
+
+- **Role and mission** with clear scope
+- **Step-by-step process** the agent must follow
+- **Output format** specifying exactly what to deliver
+- **Quality rules** (10 mandatory rules baked into every template)
+- **Anti-patterns** -- common mistakes the agent must avoid
+- **Placeholders** for customization and example dispatches
+
+Templates can be **chained** for complex workflows:
+- **Research pipeline:** Web Researcher (x3-5 parallel) → Research Synthesizer → Document Builder → Deliverable QA
+- **Video pipeline:** Video Analyzer (per video) → Deep Comparison → Stack Evaluator (per tool found)
+- **Code project:** Codebase Explorer → Code Builder → Audit/Reviewer → Deliverable QA
+
+See [agent-prompts/INDEX.md](./agent-prompts/INDEX.md) for the full catalog.
+
+### Deliverable Coordination -- No Duplicate Work
+
+When multiple agents produce deliverables, you need a system to prevent duplicate work and lost files. The protocol is simple:
+
+1. **Single shared folder** with a naming convention: `{YYYY-MM-DD}-{agent}-{topic}.{ext}`
+2. **Announce every deliverable** on Discord (or your team channel)
+3. **Check the folder before starting work** to avoid duplicating a teammate's output
 
 ---
 
