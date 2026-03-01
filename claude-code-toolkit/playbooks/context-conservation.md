@@ -67,11 +67,34 @@ The agent-first protocol originally focused on READS (file reads, research, expl
 
 ---
 
+## BROWSER SCRAPING RULE (Added 2026-03-01)
+
+**ALL multi-step browser interactions (Playwright) must be delegated to an agent.** Every page snapshot dumps 2-5KB of DOM tree YAML into your context — navigation bars, footers, dialogs, dropdowns — most of it irrelevant. A 6-step scrape can burn 30KB+ of context for data that compresses to 2KB of actual results.
+
+**The incident:** Scraping Texas hospice rates from Palmetto GBA required: accept license dialog → select rate period → select quality data → select state → extract table. Six Playwright snapshots consumed ~30KB of context. An agent would have returned a clean JSON blob in ~3KB.
+
+**How to apply:**
+1. **Fire a `general-purpose` agent** with the full scraping instructions: URL, what to click, what to extract, what format to return
+2. The agent handles all the DOM snapshots in its own context
+3. You get back a compact result — just the data you need
+
+**Decision test:** "Am I about to interact with a webpage that requires 2+ page loads/clicks?" → Agent it. One-shot `WebFetch` for a simple page is fine to do yourself.
+
+**Examples:**
+- Scraping a rate table through dropdown forms → AGENT (6+ snapshots)
+- Fetching a single API docs page → DO IT YOURSELF (1 WebFetch)
+- Filling out a multi-page form to get a result → AGENT
+- Taking one screenshot to verify a deployment → DO IT YOURSELF
+
+---
+
 ## Decision Flowchart
 
 ```
 Is the task a file EDIT or WRITE? → DO IT YOURSELF
                                      ↓ no
+Does it involve 2+ browser clicks/pages? → AGENT IT
+                                            ↓ no
 Will raw output exceed ~500 tokens? → AGENT IT
                                      ↓ no
 Do I need exact content for a decision? → DO IT YOURSELF
