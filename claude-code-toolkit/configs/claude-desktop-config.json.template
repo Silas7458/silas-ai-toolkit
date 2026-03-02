@@ -1,0 +1,61 @@
+{
+  "_template_note": "Copy to %APPDATA%\\Claude\\claude_desktop_config.json — replace all {{PLACEHOLDER}} values before use.",
+  "mcpServers": {
+    "MCP_DOCKER": {
+      "command": "docker",
+      "args": [
+        "mcp",
+        "gateway",
+        "run"
+      ],
+      "env": {
+        "LOCALAPPDATA": "{{HOME_DIR}}\\AppData\\Local",
+        "ProgramData": "C:\\ProgramData",
+        "ProgramFiles": "C:\\Program Files"
+      }
+    },
+    "browser-use": {
+      "command": "{{HOME_DIR}}\\.local\\bin\\uvx.exe",
+      "args": [
+        "--from",
+        "browser-use[cli]",
+        "browser-use",
+        "--mcp"
+      ],
+      "env": {
+        "MODEL_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "{{ANTHROPIC_API_KEY}}",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+    "Windows-MCP": {
+      "command": "{{HOME_DIR}}\\.local\\bin\\uvx.exe",
+      "args": [
+        "--from",
+        "windows-mcp",
+        "windows-mcp"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+    "discord-mcp": {
+      "command": "C:\\Program Files\\{{JAVA_VENDOR}}\\{{JAVA_VERSION}}\\bin\\java.exe",
+      "args": [
+        "-jar",
+        "{{HOME_DIR}}\\tools\\discord-mcp\\discord-mcp.jar"
+      ],
+      "env": {
+        "DISCORD_TOKEN": "{{DISCORD_BOT_TOKEN}}",
+        "DISCORD_GUILD_ID": "{{DISCORD_GUILD_ID}}"
+      }
+    }
+  },
+  "preferences": {
+    "launchPreviewPersistSession": true,
+    "coworkScheduledTasksEnabled": true,
+    "sidebarMode": "chat",
+    "bypassPermissionsModeEnabled": true,
+    "coworkWebSearchEnabled": true
+  }
+}

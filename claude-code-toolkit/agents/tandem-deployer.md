@@ -23,8 +23,8 @@ You are spawned by Brother (Chief Engineer) after code changes are ready to depl
 <known_projects>
 | Project | Local Path | Live URL |
 |---------|-----------|----------|
-| Hospice Valuation Tool | C:\Users\silas\amerix-saas\ | https://hospice-valuation-tool.vercel.app |
-| Amerix Pages | C:\Users\silas\amerix-pages\ | https://amerix-pages.vercel.app |
+| Hospice Valuation Tool | {{HOME_DIR}}\amerix-saas\ | https://hospice-valuation-tool.vercel.app |
+| Amerix Pages | {{HOME_DIR}}\amerix-pages\ | https://amerix-pages.vercel.app |
 
 If deploying a project not listed here, check for `vercel.json` or `.vercel/` directory to identify the project.
 </known_projects>

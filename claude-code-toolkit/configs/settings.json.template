@@ -1,11 +1,11 @@
 {
-  "// ENVIRONMENT VARIABLES": "Set env vars that Claude Code and its agents inherit",
+  "// TEMPLATE": "Copy to C:\\Users\\{YOU}\\.claude\\settings.json — replace {{HOME_DIR}} with your actual home path (e.g. C:/Users/yourname). No trailing slash.",
   "env": {
-    "// Database URL for any persistent storage needs": "",
-    "CONTINUOUS_CLAUDE_DB_URL": "[YOUR_DATABASE_URL]",
-
     "// Enable experimental agent teams feature": "",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+
+    "// Database URL for persistent storage (Postgres, SQLite, etc.)": "",
+    "CONTINUOUS_CLAUDE_DB_URL": "postgresql://{{DB_USER}}:{{DB_PASSWORD}}@localhost:5432/{{DB_NAME}}",
 
     "// Enable MCP tool search": "",
     "ENABLE_TOOL_SEARCH": "true"
@@ -29,15 +29,20 @@
     ]
   },
 
-  "// HOOKS": "Custom code that runs at specific lifecycle points",
+  "// HOOKS": "Custom code that runs at specific lifecycle points. See claude-code-toolkit/hooks/ for implementations.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
-            "// PURPOSE": "Run any initialization logic when a session starts",
+            "// PURPOSE": "Check for GSD plugin updates on session start",
             "type": "command",
-            "command": "node \"[YOUR_HOOKS_DIR]/session-start.js\"",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/gsd-check-update.js\""
+          },
+          {
+            "// PURPOSE": "Register session for multi-agent coordination / activity logging",
+            "type": "command",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/dist/session-register.mjs\"",
             "timeout": 10
           }
         ]
@@ -47,10 +52,20 @@
       {
         "hooks": [
           {
-            "// PURPOSE": "Inject relevant memory context before each prompt is processed",
+            "// PURPOSE": "Inject relevant memory/context before each prompt is processed",
             "type": "command",
-            "command": "node \"[YOUR_HOOKS_DIR]/memory-awareness.mjs\"",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/dist/memory-awareness.mjs\"",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "// PURPOSE": "Inject context-window usage bracket into system prompt (warns at 60/80/95%)",
+            "type": "command",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/context-bracket.js\"",
+            "timeout": 5
           }
         ]
       }
@@ -60,22 +75,65 @@
         "matcher": "Edit",
         "hooks": [
           {
-            "// PURPOSE": "Track which agent/session last edited each file (useful for multi-agent)",
+            "// PURPOSE": "Track which agent/session last edited each file — prevents multi-agent conflicts",
             "type": "command",
-            "command": "node \"[YOUR_HOOKS_DIR]/file-claims.mjs\"",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/dist/file-claims.mjs\"",
             "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "// PURPOSE": "Windows system tray notification when Claude finishes a response (Windows only)",
+            "type": "command",
+            "command": "powershell -NoProfile -Command \"[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms'); $n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information; $n.BalloonTipTitle = 'Claude Code'; $n.BalloonTipText = 'Ready for input'; $n.Visible = $true; $n.ShowBalloonTip(5000); Start-Sleep -Seconds 6; $n.Dispose()\"",
+            "timeout": 10
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "// EXAMPLE": "Run cleanup after specific tool uses",
-        "matcher": "Bash",
+        "matcher": "Write",
+        "hooks": [
+          {
+            "// PURPOSE": "Auto-format files after Write (runs prettier/eslint/black depending on file type)",
+            "type": "command",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/auto-format.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "// PURPOSE": "Restore terminal focus after Windows-MCP UI interactions (Windows only)",
+        "matcher": "mcp__windows-mcp__Click",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"[YOUR_HOOKS_DIR]/post-bash-cleanup.js\"",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/restore-terminal.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__windows-mcp__Scroll",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/restore-terminal.js\"",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__windows-mcp__Snapshot",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"{{HOME_DIR}}/.claude/hooks/restore-terminal.js\"",
             "timeout": 5
           }
         ]
@@ -83,23 +141,29 @@
     ]
   },
 
-  "// STATUS LINE": "Custom status bar content",
+  "// STATUS LINE": "Custom status bar content shown in the Claude Code UI",
   "statusLine": {
     "type": "command",
-    "command": "node \"[YOUR_HOOKS_DIR]/statusline.js\""
+    "command": "node \"{{HOME_DIR}}/.claude/hooks/gsd-statusline.js\""
   },
 
-  "// PLUGINS": "Enable/disable official and community plugins",
+  "// PLUGINS": "Enable/disable official and community plugins. Requires plugins to be installed — see INSTALLED-PLUGINS.md",
   "enabledPlugins": {
-    "// Official plugins": "",
+    "// cctools-plugins (community — install separately)": "",
+    "voice@cctools-plugins": true,
+    "workflow@cctools-plugins": true,
+    "aichat@cctools-plugins": true,
+
+    "// Official Anthropic plugins": "",
     "feature-dev@claude-plugins-official": true,
     "code-review@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "commit-commands@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
 
-    "// Disabled plugins (set to true to enable)": "",
+    "// Disabled plugins (set true to enable)": "",
     "frontend-design@claude-plugins-official": false,
     "hookify@claude-plugins-official": false,
     "playground@claude-plugins-official": false,
@@ -107,9 +171,6 @@
     "security-guidance@claude-plugins-official": false
   },
 
-  "// AUTO-UPDATES": "Which release channel to follow",
   "autoUpdatesChannel": "latest",
-
-  "// BYPASS DANGEROUS MODE PROMPT": "Skip the confirmation when entering bypass mode",
   "skipDangerousModePermissionPrompt": true
 }

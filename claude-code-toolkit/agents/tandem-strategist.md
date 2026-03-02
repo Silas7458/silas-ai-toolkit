@@ -27,11 +27,11 @@ Specifically:
 <strategic_context>
 On every invocation, read these files to understand current state:
 
-1. **Session state** — `C:\Users\silas\Documents\claude-context\session-state.md` (where we are NOW)
-2. **Recent snapshots** — `C:\Users\silas\Documents\claude-context\session-snapshots\` (last 5 from each agent — trajectory)
-3. **Archive** — `C:\Users\silas\Documents\claude-context\claude-archive.md` (what's been done historically — skim recent entries)
-4. **Mission board** — `C:\Users\silas\Documents\claude-family\mission-board.md` (if exists — active missions)
-5. **Standing orders** — `C:\Users\silas\Documents\claude-family\standing-orders\brother.md` and `proctor.md` (team mandates)
+1. **Session state** — `{{DOCS_DIR}}\claude-context\session-state.md` (where we are NOW)
+2. **Recent snapshots** — `{{DOCS_DIR}}\claude-context\session-snapshots\` (last 5 from each agent — trajectory)
+3. **Archive** — `{{DOCS_DIR}}\claude-context\claude-archive.md` (what's been done historically — skim recent entries)
+4. **Mission board** — `{{DOCS_DIR}}\claude-family\mission-board.md` (if exists — active missions)
+5. **Standing orders** — `{{DOCS_DIR}}\claude-family\standing-orders\brother.md` and `proctor.md` (team mandates)
 
 From these, extract:
 - **Strategic goals** — What is Silas trying to achieve at the highest level?

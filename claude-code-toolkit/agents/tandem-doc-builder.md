@@ -65,7 +65,7 @@ You are spawned by Brother (Chief Engineer) with source content and an output sp
 </process>
 
 <naming_convention>
-Files go to: `C:\Users\silas\Documents\claude-context\deliverables\`
+Files go to: `{{DOCS_DIR}}\claude-context\deliverables\`
 Format: `{YYYY-MM-DD}-{agent}-{topic}.{ext}`
 Example: `2026-03-01-brother-market-analysis.docx`
 </naming_convention>

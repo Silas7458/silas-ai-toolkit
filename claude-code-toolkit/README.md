@@ -39,14 +39,32 @@ A fresh Claude Code install gives you a capable coding assistant. This toolkit t
 ```
 claude-code-toolkit/
 ├── README.md                          # This file -- overview and quick start
-├── SETUP-GUIDE.md                     # Step-by-step replication guide
+├── SETUP-GUIDE.md                     # Step-by-step machine replication guide
+├── INSTALLED-PLUGINS.md               # Third-party plugins manifest + install instructions
 ├── configs/
 │   ├── CLAUDE.md.template             # Master instruction file template
-│   ├── claude.json.template           # MCP server configuration template
-│   ├── settings.json.template         # Claude Code settings and hooks template
+│   ├── claude.json.template           # MCP server configuration (9 servers)
+│   ├── settings.json.template         # Claude Code settings, hooks, and plugins
+│   ├── claude-desktop-config.json.template  # Claude Desktop MCP config (for Proctor)
 │   ├── README.md                      # Config file explanations
 │   └── hooks/
-│       └── auto-format.js             # Post-tool hook: auto-formats code files with Prettier
+│       ├── auto-format.js             # Post-tool: auto-formats code files with Prettier
+│       ├── context-bracket.js         # UserPromptSubmit: injects context brackets
+│       ├── restore-terminal.js        # PostToolUse: restores terminal after MCP clicks
+│       └── dist/
+│           ├── file-claims.mjs        # PreToolUse: file claim tracking
+│           ├── memory-awareness.mjs   # PostToolUse: memory awareness integration
+│           └── session-register.mjs   # SessionStart: session registration
+├── commands/                          # Slash commands (copy to ~/.claude/commands/)
+│   ├── diff-review.md                 # Generate visual HTML diff review
+│   ├── fact-check.md                  # Verify document accuracy against codebase
+│   ├── generate-slides.md             # Magazine-quality HTML slide decks
+│   ├── generate-web-diagram.md        # Standalone HTML diagrams
+│   ├── pg-query.md                    # PostgreSQL database query tool
+│   ├── plan-review.md                 # Visual plan review (current vs proposed)
+│   ├── project-recap.md               # Project mental model rebuild
+│   ├── recall.md                      # Recall from memory system
+│   └── remember.md                    # Store to memory system
 ├── agent-prompts/
 │   ├── _base-rules.md                 # 10 mandatory quality rules for ALL agents
 │   ├── INDEX.md                       # Template catalog with usage guide
@@ -60,12 +78,21 @@ claude-code-toolkit/
 │   ├── 08-web-researcher.md           # Multi-source web research with validation
 │   ├── 09-audit-reviewer.md           # Thorough code/security/PR review
 │   └── 10-deliverable-qa.md           # Final quality gate before delivery
-├── agents/
+├── agents/                            # Custom agents (copy to ~/.claude/agents/)
 │   ├── tandem-researcher.md           # Multi-source web research agent
 │   ├── tandem-doc-builder.md          # Professional document builder agent
 │   ├── tandem-deployer.md             # Vercel deploy-verify agent
 │   ├── tandem-qa.md                   # Final QA inspection agent
-│   └── tandem-strategist.md           # Strategic integrity & drift detection agent
+│   ├── tandem-strategist.md           # Strategic integrity & drift detection agent
+│   └── precedent-hunter.md            # Searches history for prior solutions
+├── scripts/                           # Infrastructure scripts (sanitized)
+│   ├── build_valuation_synthesis.py   # Valuation tool builder
+│   ├── update_valuation_model_v3.py   # Valuation model updater
+│   ├── claude-config-guard.ps1        # Hourly config integrity check (schtasks)
+│   ├── compile-proctor-briefing.ps1   # Morning brief compiler
+│   ├── wire-discord-webhooks.py       # Discord webhook setup
+│   ├── launch-hidden.vbs              # VBS wrapper -- no console flash for scheduled tasks
+│   └── ...                            # Additional utility scripts
 ├── playbooks/
 │   ├── context-conservation.md        # Agent-first protocol (the crown jewel)
 │   ├── lessons-learned.md             # Hard-won lessons from real failures
@@ -156,7 +183,7 @@ See [agent-prompts/INDEX.md](./agent-prompts/INDEX.md) for the full catalog.
 
 ### Custom Agents -- Tandem Team Specialists
 
-Beyond prompt templates, this toolkit includes **5 custom agent definitions** that plug directly into Claude Code's `/agents` system. These are standalone `.md` files with YAML frontmatter that define tool access, identity color, and full behavioral specifications.
+Beyond prompt templates, this toolkit includes **6 custom agent definitions** that plug directly into Claude Code's `/agents` system. These are standalone `.md` files with YAML frontmatter that define tool access, identity color, and full behavioral specifications.
 
 | Agent | Purpose |
 |-------|---------|
@@ -165,14 +192,46 @@ Beyond prompt templates, this toolkit includes **5 custom agent definitions** th
 | **Tandem Deployer** | Vercel deploy-verify cycle -- deploys, confirms live, reports results |
 | **Tandem QA** | Final quality gate -- catches issues before any deliverable reaches the user |
 | **Tandem Strategist** | 30,000-foot strategic integrity -- flags drift, applies Eisenhower Matrix |
+| **Precedent Hunter** | Searches team history and memory for prior solutions before brute-force investigation |
 
 To install, copy the files from `agents/` to `~/.claude/agents/` and they become available via `/agents` in Claude Code.
 
-### Hooks -- Auto-Format on Write/Edit
+### Slash Commands -- Custom Tools
 
-The toolkit includes a post-tool hook (`configs/hooks/auto-format.js`) that automatically runs Prettier on code files after any Write or Edit tool call. Install by copying to `~/.claude/hooks/` and configuring in `settings.json`.
+The toolkit includes **9 custom slash commands** that extend Claude Code with specialized capabilities:
 
-Supported file types: `.js`, `.jsx`, `.ts`, `.tsx`, `.css`, `.json`, `.html`, `.vue`, `.svelte`.
+| Command | Purpose |
+|---------|---------|
+| `/diff-review` | Visual HTML diff review of code changes |
+| `/fact-check` | Verify document accuracy against the actual codebase |
+| `/generate-slides` | Magazine-quality HTML slide decks |
+| `/generate-web-diagram` | Standalone HTML architecture diagrams |
+| `/pg-query` | Query PostgreSQL databases (read-only) |
+| `/plan-review` | Visual comparison of current state vs proposed plan |
+| `/project-recap` | Rebuild mental model of a project's current state |
+| `/recall` | Retrieve from the structured memory system |
+| `/remember` | Store durable learnings to the memory system |
+
+To install, copy files from `commands/` to `~/.claude/commands/`.
+
+### Hooks -- Session Lifecycle + Auto-Format
+
+The toolkit includes **6 hooks** that fire at various points in the session lifecycle:
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| `auto-format.js` | PostToolUse (Write/Edit) | Auto-formats code files with Prettier |
+| `context-bracket.js` | UserPromptSubmit | Injects context brackets for memory/notification awareness |
+| `restore-terminal.js` | PostToolUse (Windows MCP) | Restores terminal focus after desktop automation clicks |
+| `session-register.mjs` | SessionStart | Registers session for tracking and continuity |
+| `memory-awareness.mjs` | PostToolUse | Memory system integration hooks |
+| `file-claims.mjs` | PreToolUse | Tracks file ownership claims across agents |
+
+To install, copy `configs/hooks/` to `~/.claude/hooks/` and wire them in `settings.json`.
+
+### Third-Party Plugins
+
+This toolkit is designed to work alongside several third-party plugins. See [INSTALLED-PLUGINS.md](./INSTALLED-PLUGINS.md) for the complete list with install instructions. Key plugins include GSD (project management), Trail of Bits security tools, and Vercel deployment skills.
 
 ### Deliverable Coordination -- No Duplicate Work
 

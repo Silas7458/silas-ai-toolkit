@@ -1,20 +1,29 @@
 {
+  "_TEMPLATE_INFO": {
+    "description": "Claude Code global config template (.claude.json). Copy to C:\Users\{your-username}\.claude.json and fill in all YOUR_* placeholders with real values.",
+    "source": "Sanitized from a real Tandem Team / Brother (Claude Code CLI) setup.",
+    "howToUse": [
+      "1. Copy this file to %USERPROFILE%\.claude.json (Windows) or ~/.claude.json (Linux/Mac)",
+      "2. Replace all YOUR_* placeholders with your real credentials and paths",
+      "3. Replace {{HOME_DIR}} with your actual home directory path (e.g. C:\Users\yourname)",
+      "4. Remove this _TEMPLATE_INFO block before use — Claude Code does not expect it",
+      "5. Adjust mcpServers to match the tools you actually have installed"
+    ],
+    "mcpServersIncluded": [
+      "MCP_DOCKER — Docker-based MCP gateway (requires Docker Desktop)",
+      "n8n-mcp — n8n workflow automation MCP server",
+      "windows-mcp — Windows UI automation (Windows only, requires uvx/Python)",
+      "google-drive-mcp — Google Drive/Docs/Sheets access (requires OAuth credentials)",
+      "discord-mcp — Discord bot integration (requires a Discord bot token + JAR)",
+      "context7 — Context7 library docs (HTTP, no auth required)",
+      "playwright — Browser automation (npx, no auth required)",
+      "github — GitHub MCP server (requires a GitHub personal access token)",
+      "firecrawl — Web scraping/crawling (requires a Firecrawl API key)"
+    ]
+  },
+
   "mcpServers": {
-
-    "// ------ TIER 1: HIGH VALUE (no secrets required for Playwright) ------": "",
-
-    "playwright": {
-      "// WHY": "Browser automation -- web scraping, testing, research, form filling. One of the most useful MCP servers. No API key needed.",
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "@playwright/mcp@latest"
-      ],
-      "env": {}
-    },
-
     "MCP_DOCKER": {
-      "// WHY": "Docker MCP Gateway -- gives Claude access to databases, memory servers, sequential thinking, and any Docker-hosted MCP service. Requires Docker Desktop.",
       "command": "docker",
       "args": [
         "mcp",
@@ -22,58 +31,13 @@
         "run"
       ],
       "env": {
-        "LOCALAPPDATA": "[YOUR_LOCAL_APPDATA_PATH]",
-        "ProgramData": "[YOUR_PROGRAMDATA_PATH]",
-        "ProgramFiles": "[YOUR_PROGRAMFILES_PATH]"
-      }
-    },
-
-    "// ------ TIER 2: TEAM/COMMUNICATION ------": "",
-
-    "discord-mcp": {
-      "// WHY": "Discord integration -- send/read messages, manage channels. Essential for multi-agent coordination where agents communicate via Discord channels.",
-      "type": "stdio",
-      "command": "[YOUR_JAVA_PATH]/java.exe",
-      "args": [
-        "-jar",
-        "[YOUR_DISCORD_MCP_JAR_PATH]/discord-mcp.jar"
-      ],
-      "env": {
-        "DISCORD_TOKEN": "[YOUR_DISCORD_BOT_TOKEN]",
-        "DISCORD_GUILD_ID": "[YOUR_DISCORD_SERVER_ID]"
-      }
-    },
-
-    "google-drive-mcp": {
-      "// WHY": "Google Drive integration -- read/write documents, sheets, slides. Useful for deliverable management and cross-session document persistence.",
-      "type": "stdio",
-      "command": "[YOUR_GOOGLE_DRIVE_MCP_START_SCRIPT]",
-      "args": [],
-      "env": {
-        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "[YOUR_OAUTH_CREDENTIALS_PATH]/client_secret.json"
-      }
-    },
-
-    "// ------ TIER 3: PLATFORM-SPECIFIC ------": "",
-
-    "windows-mcp": {
-      "// WHY": "Windows desktop automation -- screenshots, window management, clicking, typing, scrolling. Essential for multi-agent setups where one Claude instance monitors another's window. Windows only.",
-      "type": "stdio",
-      "command": "[YOUR_UVX_PATH]/uvx.exe",
-      "args": [
-        "--from",
-        "windows-mcp<2",
-        "--with",
-        "fastmcp<3",
-        "windows-mcp"
-      ],
-      "env": {
-        "PYTHONIOENCODING": "utf-8"
+        "LOCALAPPDATA": "{{HOME_DIR}}\AppData\Local",
+        "ProgramData": "C:\ProgramData",
+        "ProgramFiles": "C:\Program Files"
       }
     },
 
     "n8n-mcp": {
-      "// WHY": "n8n workflow automation integration -- search nodes, templates, validate workflows. Useful if you use n8n for automation.",
       "type": "stdio",
       "command": "cmd",
       "args": [
@@ -87,6 +51,92 @@
         "LOG_LEVEL": "error",
         "DISABLE_CONSOLE_OUTPUT": "true"
       }
+    },
+
+    "windows-mcp": {
+      "type": "stdio",
+      "command": "{{HOME_DIR}}\.local\bin\uvx.exe",
+      "args": [
+        "--from",
+        "windows-mcp<2",
+        "--with",
+        "fastmcp<3",
+        "windows-mcp"
+      ],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+
+    "google-drive-mcp": {
+      "type": "stdio",
+      "command": "{{HOME_DIR}}\.config\google-drive-mcp\start-server.cmd",
+      "args": [],
+      "env": {
+        "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "{{HOME_DIR}}\your-project\credentials\client_secret.json"
+      }
+    },
+
+    "discord-mcp": {
+      "type": "stdio",
+      "command": "C:\Program Files\Amazon Corretto\jdk17.0.18_9\bin\java.exe",
+      "_note_command": "Adjust path to your Java 17+ installation. discord-mcp.jar is available at https://github.com/your-discord-mcp-source",
+      "args": [
+        "-jar",
+        "{{HOME_DIR}}\tools\discord-mcp\discord-mcp.jar"
+      ],
+      "env": {
+        "DISCORD_TOKEN": "YOUR_DISCORD_BOT_TOKEN_HERE",
+        "DISCORD_GUILD_ID": "YOUR_DISCORD_SERVER_ID_HERE"
+      }
+    },
+
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  },
+
+  "projects": {
+    "{{HOME_DIR}}\your-project": {
+      "_note": "Project-specific MCP servers override global mcpServers for sessions started in this directory. Duplicate this block for each project that needs custom servers.",
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {
+        "playwright": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "@playwright/mcp@latest"
+          ],
+          "env": {}
+        },
+        "github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@anthropic-ai/github-mcp-server"
+          ],
+          "env": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT_HERE"
+          }
+        },
+        "firecrawl": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "firecrawl-mcp"
+          ],
+          "env": {
+            "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_API_KEY_HERE"
+          }
+        }
+      },
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": true
     }
   }
 }

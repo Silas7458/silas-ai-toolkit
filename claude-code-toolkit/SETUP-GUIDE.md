@@ -4,6 +4,146 @@ Step-by-step guide for replicating this Claude Code configuration on a new machi
 
 ---
 
+## Quick Replication Path (Clone an Existing Setup)
+
+If you are replicating an existing Tandem Team machine (not building from scratch), use this fast path:
+
+### Prerequisites
+
+- Windows 11 Pro
+- Claude Code CLI installed (`npm install -g @anthropic-ai/claude-code`)
+- Claude Desktop installed
+- Node.js 18+, Python 3.10+, Git, Docker Desktop
+- GitHub CLI (`gh`) authenticated
+
+### Step 1: Clone All Repos
+
+```bash
+cd ~
+git clone https://github.com/{{GITHUB_USER}}/silas-ai-toolkit.git
+git clone https://github.com/{{GITHUB_USER}}/tandem-team.git
+git clone https://github.com/{{GITHUB_USER}}/amerix-saas.git
+git clone https://github.com/{{GITHUB_USER}}/amerix-pages.git
+```
+
+### Step 2: Deploy Config Files
+
+```bash
+# Initialize Claude Code (creates ~/.claude/ directory)
+claude --version
+
+# Copy config templates and fill in your credentials
+cp silas-ai-toolkit/claude-code-toolkit/configs/claude.json.template ~/.claude.json
+cp silas-ai-toolkit/claude-code-toolkit/configs/settings.json.template ~/.claude/settings.json
+cp silas-ai-toolkit/claude-code-toolkit/configs/CLAUDE.md.template ~/CLAUDE.md
+
+# Copy custom agents
+cp silas-ai-toolkit/claude-code-toolkit/agents/*.md ~/.claude/agents/
+
+# Copy custom hooks
+cp silas-ai-toolkit/claude-code-toolkit/configs/hooks/*.js ~/.claude/hooks/
+mkdir -p ~/.claude/hooks/dist
+cp silas-ai-toolkit/claude-code-toolkit/configs/hooks/dist/*.mjs ~/.claude/hooks/dist/
+
+# Copy slash commands
+cp silas-ai-toolkit/claude-code-toolkit/commands/*.md ~/.claude/commands/
+
+# Copy Claude Desktop config
+cp silas-ai-toolkit/claude-code-toolkit/configs/claude-desktop-config.json.template \
+   "$APPDATA/Claude/claude_desktop_config.json"
+```
+
+### Step 3: Set Up Team Directories
+
+```bash
+mkdir -p ~/Documents/claude-family/standing-orders
+mkdir -p ~/Documents/claude-family/playbooks
+mkdir -p ~/Documents/claude-context/session-snapshots
+mkdir -p ~/Documents/claude-context/notifications
+mkdir -p ~/Documents/claude-context/deliverables
+
+# Copy standing orders and playbooks
+# Use tandem-team repo templates, then fill in real paths
+cp tandem-team/standing-orders/brother.template.md ~/Documents/claude-family/standing-orders/brother.md
+cp tandem-team/standing-orders/proctor.template.md ~/Documents/claude-family/standing-orders/proctor.md
+cp tandem-team/playbooks/*.md ~/Documents/claude-family/playbooks/
+
+# Initialize session state
+echo "# Session State\nNo prior session." > ~/Documents/claude-context/session-state.md
+echo "# Brother Queue\nNo pending notifications." > ~/Documents/claude-context/notifications/brother-queue.md
+echo "# Proctor Queue\nNo pending notifications." > ~/Documents/claude-context/notifications/proctor-queue.md
+echo "# BROTHER INBOX\nNo pending items." > ~/Documents/claude-family/inbox-brother.md
+echo "# PROCTOR INBOX\nNo pending items." > ~/Documents/claude-family/inbox-proctor.md
+```
+
+### Step 4: Install Third-Party Plugins
+
+See [INSTALLED-PLUGINS.md](./INSTALLED-PLUGINS.md) for the full list. Key installs:
+
+```bash
+# GSD project management (agents, commands, skills)
+# Follow GSD install instructions from its repo
+
+# MCP servers
+npm install -g @anthropic-ai/claude-code  # Already done
+npm install -g @playwright/mcp            # Browser automation
+pip install windows-mcp                   # Desktop automation (Windows only)
+
+# Discord MCP -- requires building from source or downloading JAR
+mkdir -p ~/tools/discord-mcp
+# Place discord-mcp.jar in ~/tools/discord-mcp/
+
+# Docker services (n8n, Postgres)
+cd ~/amerix-saas && docker-compose up -d
+```
+
+### Step 5: Fill In Credentials
+
+Edit these files and replace all `{{PLACEHOLDER}}` values with real credentials:
+
+| File | What to fill in |
+|------|----------------|
+| `~/.claude.json` | API keys, Discord bot token, file paths |
+| `~/.claude/settings.json` | File paths for hooks |
+| `~/CLAUDE.md` | Your name, document paths, Discord channel IDs |
+| `~/Documents/claude-family/standing-orders/*.md` | Real paths, Discord IDs |
+| Claude Desktop config | API keys, MCP server paths |
+
+Create your secrets file (NEVER committed):
+```bash
+# ~/Documents/claude-context/council-config.json
+# Contains: API keys, JWT tokens, webhook URLs, database credentials
+```
+
+### Step 6: Configure Scheduled Tasks
+
+```bash
+# Config guard -- hourly integrity check
+schtasks /create /tn "Claude Config Guard" /sc hourly \
+  /tr "wscript.exe \"$HOME/scripts/launch-hidden.vbs\" \"$HOME/scripts/claude-config-guard.ps1\""
+
+# Context Authority -- 4-hourly CLAUDE.md refresh
+schtasks /create /tn "ContextAuthority-ClaudeMD" /sc hourly /mo 4 \
+  /tr "wscript.exe \"$HOME/scripts/launch-hidden.vbs\" \"$HOME/scripts/compile-proctor-briefing.ps1\""
+```
+
+### Step 7: Verify
+
+```bash
+claude  # Start Claude Code
+# It should: load CLAUDE.md, fire SessionStart hooks, read session-state.md
+# Ask: "What MCP servers are available?" -- should list all configured servers
+# Ask: "Run /recall test" -- should exercise the memory system
+```
+
+---
+
+## Building From Scratch (Detailed Guide)
+
+The sections below walk through building this configuration from zero, one piece at a time.
+
+---
+
 ## Prerequisites
 
 - **Claude Code CLI** installed ([official docs](https://docs.anthropic.com/en/docs/claude-code))
