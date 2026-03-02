@@ -37,4 +37,23 @@ Templates can be chained:
 ## Folder
 `~/Documents\claude-family\agent-prompts\`
 
+---
+
+## Tandem Custom Agents
+
+These are full custom agent definitions (with YAML frontmatter for Claude Code's `/agents` system) — distinct from the numbered prompt templates above. They live in `../agents/` and are installed to `~/.claude/agents/`.
+
+| Agent | File | Purpose |
+|-------|------|---------|
+| **Tandem Researcher** | `tandem-researcher.md` | Multi-source web research with cross-validation, source tiering, and gap identification |
+| **Tandem Doc Builder** | `tandem-doc-builder.md` | Professional .docx/.xlsx deliverables with Amerix branding and full build-verify cycle |
+| **Tandem Deployer** | `tandem-deployer.md` | Vercel deploy-verify cycle — deploys, waits, hits the URL, confirms changes are live |
+| **Tandem QA** | `tandem-qa.md` | Final quality gate — catches missing files, wrong numbers, formatting issues before delivery |
+| **Tandem Strategist** | `tandem-strategist.md` | 30,000-foot strategic integrity agent — flags drift, applies Eisenhower Matrix, protects the WHY |
+
+### How Custom Agents Differ from Prompt Templates
+
+- **Prompt templates** (numbered 01-10) are copy-paste blocks you inject into an `Agent()` call with placeholders
+- **Custom agents** (tandem-*) are standalone `.md` files with YAML frontmatter that Claude Code loads via the `/agents` command — they define tool access, color, and full behavioral specs
+
 *Created: 2026-02-28 | Brother Session 35*
