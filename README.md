@@ -11,8 +11,8 @@ A battle-tested collection of AI tools built across 67+ Claude Code sessions. Ea
 | Tool | Description |
 |------|-------------|
 | [**claude-code-toolkit/**](./claude-code-toolkit/) | Complete power-user blueprint for Claude Code -- agent prompt templates, custom slash commands, hooks, playbooks, protocols, MCP configs, and session management |
-| [**tiktok-pipeline/**](./tiktok-pipeline/) | End-to-end TikTok video analysis: download, keyframe extraction (every 3s), Whisper transcription, synced visual-to-speech digest |
-| [**youtube-pipeline/**](./youtube-pipeline/) | End-to-end YouTube video analysis: download, keyframe extraction (every 15s), Whisper transcription, synced visual-to-speech digest |
+| [**tiktok-pipeline/**](./tiktok-pipeline/) | End-to-end TikTok video analysis: download, keyframe extraction, Whisper transcription, synced digest. Full CLI with configurable model, interval, and output directory |
+| [**youtube-pipeline/**](./youtube-pipeline/) | End-to-end YouTube video analysis: download, keyframe extraction, Whisper transcription, synced digest. Full CLI with configurable model, interval, and output directory |
 | [**rlm-query/**](./rlm-query/) | Query large documents with Recursive Language Models -- GPT-4o mini + RLM beat full GPT-4o by 34 points on long-document benchmarks |
 
 ---
@@ -116,22 +116,28 @@ Both pipelines follow the same architecture: **download --> extract audio --> ex
 
 ### TikTok Pipeline
 
-Optimized for short-form content (15-60 seconds). Extracts keyframes every **3 seconds** -- a 30-second TikTok produces ~10 keyframes for thorough analysis.
+Optimized for short-form content (15-60 seconds). Extracts keyframes every **3 seconds** by default -- a 30-second TikTok produces ~10 keyframes for thorough analysis. Full CLI with configurable Whisper model, keyframe interval, and output directory.
 
 ```bash
 cd tiktok-pipeline
 pip install -r requirements.txt
 python process-video.py "https://www.tiktok.com/@user/video/1234567890"
+python process-video.py "https://www.tiktok.com/@user/video/1234567890" --model medium -i 5 -o ./my-output
+python process-video.py --test   # verify tools
+python process-video.py --help   # full CLI reference
 ```
 
 ### YouTube Pipeline
 
-Optimized for long-form content (5-60+ minutes). Extracts keyframes every **15 seconds** -- a 10-minute video produces ~40 keyframes, capturing major scene transitions without generating hundreds of frames.
+Optimized for long-form content (5-60+ minutes). Extracts keyframes every **15 seconds** by default -- a 10-minute video produces ~40 keyframes, capturing major scene transitions without generating hundreds of frames. Full CLI with configurable Whisper model, keyframe interval, and output directory.
 
 ```bash
 cd youtube-pipeline
 pip install -r requirements.txt
 python process-video.py "https://www.youtube.com/watch?v=VIDEO_ID"
+python process-video.py "https://www.youtube.com/watch?v=VIDEO_ID" --model medium -i 30 -o ./my-output
+python process-video.py --test   # verify tools
+python process-video.py --help   # full CLI reference
 ```
 
 ### Output
@@ -200,10 +206,12 @@ See the [tandem-team](https://github.com/Silas7458/tandem-team) repo for the ful
 # TikTok
 cd tiktok-pipeline && pip install -r requirements.txt
 python process-video.py "https://www.tiktok.com/@user/video/ID" --alias "my-analysis"
+python process-video.py --help   # see all options
 
 # YouTube
 cd youtube-pipeline && pip install -r requirements.txt
 python process-video.py "https://www.youtube.com/watch?v=ID" --alias "my-analysis"
+python process-video.py --help   # see all options
 ```
 
 **For document querying:**

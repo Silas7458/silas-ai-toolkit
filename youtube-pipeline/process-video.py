@@ -3,14 +3,23 @@
 YouTube Video Analysis Pipeline
 
 Usage:
-    python process-video.py <youtube_url> [--alias <name>]
-    python process-video.py --test   # verify all tools work without processing
+    python process-video.py <url> [options]
+    python process-video.py --test
+    python process-video.py --help
+
+Options:
+    url                 YouTube video URL to process
+    --output-dir, -o    Output directory (default: env YOUTUBE_OUTPUT_DIR or ./output)
+    --model, -m         Whisper model: tiny/base/small/medium/large (default: base)
+    --interval, -i      Keyframe interval in seconds (default: 15)
+    --alias, -a         Custom alias for the video
+    --test              Verify all tools without processing
 
 Pipeline steps:
     1. yt-dlp downloads video + metadata JSON
     2. FFmpeg extracts audio.wav (16kHz mono)
-    3. FFmpeg extracts keyframes at 15-second intervals
-    4. Whisper base model transcribes audio -> transcript.txt
+    3. FFmpeg extracts keyframes at configurable intervals
+    4. Whisper transcribes audio -> transcript.txt
     5. Digest.txt syncs keyframes to transcript segments
     6. metadata.json captures URL, creator, stats, processing info
     7. index.json updated at root
@@ -30,6 +39,7 @@ Output structure:
             +-- ...
 """
 
+import argparse
 import json
 import os
 import re
@@ -151,22 +161,32 @@ def step_extract_keyframes(video_dir, duration):
     keyframes_dir = video_dir / "keyframes"
     keyframes_dir.mkdir(exist_ok=True)
 
-    run_cmd([
-        "ffmpeg", "-y", "-i", str(video_path),
-        "-vf", f"fps=1/{KEYFRAME_INTERVAL}",
-        str(keyframes_dir / "frame_%03ds.png")
-    ], desc=f"Extracting keyframes at 1/{KEYFRAME_INTERVAL} fps")
+    # Extract to temp dir first, then copy to timestamps -- avoids collision
+    # bug where FFmpeg's sequential names (001, 002...) overlap with target
+    # timestamp names (015, 030...) and .replace() destroys frames.
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        run_cmd([
+            "ffmpeg", "-y", "-i", str(video_path),
+            "-vf", f"fps=1/{KEYFRAME_INTERVAL}",
+            str(tmp_path / "frame_%03d.png")
+        ], desc=f"Extracting keyframes at 1/{KEYFRAME_INTERVAL} fps")
 
-    # Rename frames: ffmpeg numbers sequentially (001, 002, ...), we want timestamps
-    frames = sorted(keyframes_dir.glob("frame_*.png"))
-    renamed = []
-    for i, frame in enumerate(frames):
-        timestamp = i * KEYFRAME_INTERVAL
-        new_name = f"frame_{timestamp:03d}s.png"
-        new_path = keyframes_dir / new_name
-        if frame.name != new_name:
-            frame.replace(new_path)
-        renamed.append(new_path)
+        # Clear any old keyframes
+        for old_frame in keyframes_dir.glob("frame_*.png"):
+            old_frame.unlink()
+
+        # Copy from temp with correct timestamp names
+        import shutil
+        frames = sorted(tmp_path.glob("frame_*.png"))
+        renamed = []
+        for i, frame in enumerate(frames):
+            timestamp = i * KEYFRAME_INTERVAL
+            new_name = f"frame_{timestamp:03d}s.png"
+            new_path = keyframes_dir / new_name
+            shutil.copy2(str(frame), str(new_path))
+            renamed.append(new_path)
 
     print(f"  [OK] Keyframes: {len(renamed)} frames extracted")
     return renamed
@@ -458,25 +478,67 @@ def test_tools():
     return all_ok
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python process-video.py <youtube_url> [--alias <name>]")
-        print("  python process-video.py --test")
-        sys.exit(1)
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="YouTube Video Analysis Pipeline -- download, extract keyframes, "
+                    "transcribe with Whisper, and generate a synced visual-to-speech digest.",
+        epilog="Environment variables:\n"
+               "  YOUTUBE_OUTPUT_DIR  Default output directory (default: ./output)\n"
+               "  YTDLP_PATH         Path to yt-dlp executable (default: yt-dlp)\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "url", nargs="?", default=None,
+        help="YouTube video URL to process",
+    )
+    parser.add_argument(
+        "--output-dir", "-o", default=None,
+        help="Output directory (default: env YOUTUBE_OUTPUT_DIR or ./output)",
+    )
+    parser.add_argument(
+        "--model", "-m", default=None,
+        choices=["tiny", "base", "small", "medium", "large"],
+        help="Whisper model size (default: base)",
+    )
+    parser.add_argument(
+        "--interval", "-i", type=int, default=None,
+        help="Keyframe interval in seconds (default: 15)",
+    )
+    parser.add_argument(
+        "--alias", "-a", default=None,
+        help="Custom alias for the video (default: auto-generated from title)",
+    )
+    parser.add_argument(
+        "--test", action="store_true",
+        help="Verify all tools are installed without processing a video",
+    )
+    return parser.parse_args()
 
-    if sys.argv[1] == "--test":
+
+def main():
+    global BASE_DIR, WHISPER_MODEL, KEYFRAME_INTERVAL
+
+    args = parse_args()
+
+    # Apply CLI overrides (env var fallbacks already set in config section)
+    if args.output_dir:
+        BASE_DIR = Path(args.output_dir)
+    if args.model:
+        WHISPER_MODEL = args.model
+    if args.interval:
+        KEYFRAME_INTERVAL = args.interval
+
+    if args.test:
         ok = test_tools()
         sys.exit(0 if ok else 1)
 
-    url = sys.argv[1]
-    alias = None
-    if "--alias" in sys.argv:
-        idx = sys.argv.index("--alias")
-        if idx + 1 < len(sys.argv):
-            alias = sys.argv[idx + 1]
+    if not args.url:
+        print("Error: URL is required unless --test is specified.", file=sys.stderr)
+        print("Run with --help for usage information.", file=sys.stderr)
+        sys.exit(1)
 
-    process_video(url, alias)
+    process_video(args.url, args.alias)
 
 
 if __name__ == "__main__":
