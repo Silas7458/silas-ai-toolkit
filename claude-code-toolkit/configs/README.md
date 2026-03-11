@@ -58,3 +58,38 @@ Claude Code loads configuration in this order (later files can override earlier 
 6. `~/.claude/projects/{project-hash}/memory/MEMORY.md` -- Auto-memory
 
 Understanding this order matters when you have both global and project-level configurations.
+
+---
+
+## MCP Servers — Default State
+
+JSON does not support comments, so the disabled/enabled rationale for each MCP server in `claude.json.template` is documented here.
+
+### Always Enabled
+These servers are core infrastructure and should remain active in every session:
+
+| Server | Why |
+|--------|-----|
+| `MCP_DOCKER` | Docker-based MCP gateway — provides database, knowledge graph, and messaging tools |
+| `discord-mcp` | Team communication backbone — handoffs, session logs, alerts |
+| `context7` | Library documentation lookup — lightweight HTTP server, no auth, minimal overhead |
+| `n8n-mcp` | Workflow automation — 6+ active workflows depend on it |
+
+### Proctor Only (Not for Brother)
+| Server | Why |
+|--------|-----|
+| `windows-mcp` | Windows UI automation — Proctor (Claude Desktop) needs it for GUI interaction. Brother (Claude Code terminal) does not — Bash + Playwright covers all Brother's needs. Marked `"disabled": true` in the Brother config template. |
+
+### Disabled by Default (Enable On-Demand)
+These servers are set to `"disabled": true` in the template. Enable them when a task requires their capabilities, then disable again after.
+
+| Server | Why disabled | When to enable |
+|--------|-------------|----------------|
+| `google-drive-mcp` | ~16K tokens/turn overhead — burns context fast | Creating/editing Google Docs, Sheets, Slides, or Presentations. Use `/google-toggle` to enable/disable. For simple Drive file listing or downloads, use the `gws` CLI instead. |
+| `firecrawl` | Context overhead from tool definitions | Web scraping, crawling, or search tasks that need structured extraction. For simple URL fetches, use `WebFetch` or `curl` instead. |
+
+### Disabled (Do Not Enable)
+| Server | Why |
+|--------|-----|
+| `github` | GitHub account suspended (appeal pending). Use GitLab CLI (`glab`) or Vercel CLI for deployments instead. |
+| `playwright` (MCP) | DEPRECATED — Use Playwright CLI directly (`npx playwright`), which is 4x more token-efficient. MCP config kept in template for reference only. |

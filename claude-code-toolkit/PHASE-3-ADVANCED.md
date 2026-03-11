@@ -651,6 +651,7 @@ CREATE TABLE IF NOT EXISTS learnings (
     tags TEXT[],
     confidence TEXT DEFAULT 'medium',
     embedding vector(1536),
+    superseded_by UUID REFERENCES learnings(id),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -659,6 +660,8 @@ CREATE INDEX IF NOT EXISTS idx_learnings_tags ON learnings USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_learnings_embedding ON learnings USING ivfflat (embedding vector_cosine_ops);
 SQL
 ```
+
+**Note on `superseded_by`:** This field enables soft-deprecation of outdated memories. When a learning is replaced by a newer, more accurate version, set `superseded_by` to the new record's UUID. Recall queries should filter out superseded records (WHERE superseded_by IS NULL) to avoid returning stale information.
 
 #### Step 3: Install Dependencies
 
@@ -957,6 +960,15 @@ Both should return the test learnings you stored.
 - uv not found: `pip install uv`
 - Gemini store empty: Check the knowledge-stores directory was created at the right path
 
+### Memory Architecture Notes (Lessons Learned)
+
+These are operational insights from running the Knowledge Layer in production:
+
+- **Recency weighting in recall queries.** When relevance scores are equal, newer memories should rank higher. Add `ORDER BY created_at DESC` as a tiebreaker in your recall queries. Stale context from 50 sessions ago is rarely more useful than last week's.
+- **SQLite fallback.** If Postgres is unreachable (container down, port conflict), memory operations should not block the session. Consider a lightweight SQLite fallback that stores learnings locally and syncs to Postgres when it comes back up.
+- **Memory audit baseline.** An early audit scored the system at 6.2/10. Main gaps: low record count (69 records — too few for meaningful semantic search), empty Postgres tables (16 of 18 tables had zero rows). The fix is discipline — store learnings consistently, not just when you remember to.
+- **MEMORY.md consolidation.** As your auto-memory file (MEMORY.md) grows, complex rules should get their own detail files (e.g., `memory/skill-zero-details.md`, `memory/agent-verb-rules.md`). MEMORY.md holds pointers only — one line per rule with a file reference. This prevents MEMORY.md from becoming a context bomb on every session.
+
 ---
 
 ## Section 5: Advanced Hooks (15 min)
@@ -1203,11 +1215,25 @@ This is the primary trigger, harder to game than verb matching:
 
 If you declare SOLO on the gate check, you are committing to a maximum of 4 tool calls. If you hit call 4 and are not done, STOP. The gate check was wrong. Re-plan with agents.
 
+### PreToolUse Enforcement Hook
+
+Skill Zero is no longer honor-system only. A **PreToolUse hook** counts tool calls and enforces the gate check:
+
+- The hook fires before every tool call and checks whether Skill Zero output is visible in the conversation
+- At 4+ tool calls without a visible gate check, the hook injects a **warning** into the conversation
+- This prevents the most common failure mode: the agent deciding "this task is simple enough to skip planning" and then burning 20+ tool calls solo
+
+To install the hook, add it to your `settings.json` PreToolUse array (see Section 5 for hook installation).
+
 ### Mid-Task Scope Check
 
 At tool call 3 on any solo task, pause and answer: "SCOPE CHECK: same or expanded?"
 
 If the task has grown beyond the original estimate (new files discovered, deeper problem found, additional fixes needed), re-run the gate check. If it now says AGENTS, pivot immediately.
+
+### Phase Transition Re-Check
+
+**One Skill Zero pass does NOT authorize all subsequent phases.** When the nature of work shifts — for example, from analysis to implementation, or from research to build — re-run the 6-line cost check. Each phase has different tool call profiles and context costs. A task that started as "read 2 files" can expand into "refactor 8 files" after the analysis phase reveals the scope.
 
 ### Creating the Skill File
 
@@ -1271,6 +1297,21 @@ SKILL
 
 Result: Spawn 3 agents — one reads logs, one traces the route handler, one checks database queries. Each returns a summary. You synthesize.
 
+### Agent Reliability — What We Learned
+
+Early testing suggested a 23% agent failure rate. After investigation, the **actual failure rate is ~5%.** The root cause was Write tool sequencing — agents tried to Read nonexistent files before Writing new ones, which triggered errors.
+
+**The fix (baked into agent base rules):**
+1. **If Write fails, return content inline.** The agent should never silently fail — if it cannot write the deliverable file, it returns the full content in its summary so the main context can capture it.
+2. **New files: Write directly, do not Read first.** The Write tool requires a prior Read on *existing* files, but for *new* files the agent should Write directly without a Read.
+3. **Write early, research second.** Agents should create their output file first (even with placeholder content), then fill it in. This prevents the failure mode where an agent does 10 minutes of research and then fails on the final Write.
+
+**Prompt quality matters more than anything else.** Prescriptive prompts (specific files, exact output format, clear success criteria) succeed ~99% of the time. Open-ended prompts ("investigate this and tell me what you find") risk budget burn and vague results. Every agent prompt should include:
+- Exact file paths to read/write
+- Output format (e.g., "Write a table with columns X, Y, Z")
+- A 3-line summary format for the return value
+- Credentials/endpoints if the agent needs external access
+
 ### Verify:
 1. Start a new Claude Code session
 2. Give it a task
@@ -1309,73 +1350,112 @@ Example: `/recall database errors` sets `$ARGUMENTS` to `database errors`.
 
 ### Essential Starter Skills
 
-#### /session-start — Automated Startup
+#### /session-start — Automated Startup (Agent-Powered)
+
+The startup skill launches **2 lightweight agents in parallel** to gather state and messages simultaneously. This replaced the old sequential approach (which read 16+ individual snapshot files) and cut startup token cost from ~114K to ~50K.
+
+**Architecture:**
+
+| Agent | Reads | Writes |
+|-------|-------|--------|
+| **State Reader** | session-state.md, inbox-brother.md, trajectory.md | deliverables/startup-state-digest.md |
+| **Discord Reader** | #handoffs channel (last 15 messages) | deliverables/startup-discord-digest.md |
+
+Both agents return 3-line summaries. Brother synthesizes into a briefing for the user.
+
+**Key design decisions:**
+- **trajectory.md replaces snapshot globbing.** Instead of reading 16+ individual session snapshots, the State Reader reads a single rolling history table. See Section 8 for details.
+- **Recall is ON-DEMAND ONLY.** Generic startup recall (`/recall` on every boot) was removed — it produced low-value results at ~26K token cost. Use `/recall <query>` when a specific task needs prior context.
+- **Agent output goes to files, not inline.** Each agent writes its full report to a deliverables file and returns only a 3-line summary. This prevents agent output from bloating the main context.
 
 ```bash
 cat > .claude/commands/session-start.md << 'SKILL'
 ---
 name: session-start
-description: "Run on every session startup. Reads state, checks messages, presents briefing."
+description: "Run on every session startup. Launches 2 agents to read state + Discord, presents briefing."
 ---
 
-# Session Startup Sequence
+# Session Startup — Agent-Powered
 
-Execute these steps IN ORDER before responding to any user message:
+Launch 2 agents IN PARALLEL. Do not read state files yourself — the agents do it.
 
-1. **Read session state:**
-   Read {YOUR_HOME}/Documents/claude-context/session-state.md
+## Agent 1: State Reader
+Spawn a sub-agent with this prompt:
+> Read these 3 files and write a consolidated digest to
+> {YOUR_HOME}/Documents/claude-context/deliverables/startup-state-digest.md:
+> 1. {YOUR_HOME}/Documents/claude-context/session-state.md (current status + priorities)
+> 2. {YOUR_HOME}/Documents/claude-family/inbox-{role}.md (pending messages)
+> 3. {YOUR_HOME}/Documents/claude-context/trajectory.md (recent session history)
+> Return ONLY: (1) status, (2) top priority, (3) file path.
 
-2. **Read handoff prompt:**
-   Read {YOUR_HOME}/Documents/claude-context/next-session-prompt.md
+## Agent 2: Discord Reader
+Spawn a sub-agent with this prompt:
+> Read the last 15 messages from Discord #handoffs (channel ID: YOUR_HANDOFFS_ID).
+> Write digest to {YOUR_HOME}/Documents/claude-context/deliverables/startup-discord-digest.md.
+> Return ONLY: (1) message count, (2) anything needing immediate action, (3) file path.
 
-3. **Check inbox:**
-   Read {YOUR_HOME}/Documents/claude-family/inbox-{your-role}.md
-
-4. **Check notification queue:**
-   Read {YOUR_HOME}/Documents/claude-context/notifications/{your-role}-queue.md
-
-5. **Check Discord #handoffs:**
-   Read recent messages from #handoffs channel
-
-6. **Present briefing to user:**
-   Summarize: current status, pending messages, what needs immediate attention, any blockers.
+## After Both Return
+Read the two digest files. Synthesize into a briefing for the user covering:
+- Current status and priorities
+- Pending inbox messages or handoffs
+- What needs immediate attention vs. what can wait
+- Blockers or decisions needed
 
 Do NOT proceed with any other work until this briefing is presented.
 SKILL
 ```
 
-#### /session-end — Automated Shutdown
+#### /session-end — Automated Shutdown (Agent-Powered)
+
+The shutdown skill launches **4 agents in parallel**, completing in ~30 seconds (down from ~161 seconds with sequential execution).
+
+**Architecture:**
+
+| Agent | Writes | Notes |
+|-------|--------|-------|
+| **Archive Agent** | session-state.md, claude-archive.md | Overwrites state, appends to archive |
+| **Snapshot Agent** | session snapshot, handoff prompt, next-session-prompt.md | Handoff prompt goes to `handoff-prompts/` folder |
+| **Discord Agent** | Posts to #session-archive and #brother-log (or #proctor-log) | Brief summary of session |
+| **Knowledge Ingest Agent** | POSTs to knowledge-ingest webhook | Fire-and-forget — do not wait for response |
+
+**Key design decisions:**
+- **Handoff prompts go to a folder** (`handoff-prompts/`) with Skill Zero prepend on the first line. The folder provides audit trail and gap detection — if the next session sees session N-2 as the latest prompt, they know N-1 failed to hand off.
+- **Knowledge ingest is fire-and-forget.** The webhook call does not block shutdown. If it fails, it fails silently.
+- **All 4 agents run simultaneously.** No dependencies between them — each has all the context it needs from the main session.
 
 ```bash
 cat > .claude/commands/session-end.md << 'SKILL'
 ---
 name: session-end
-description: "Run at end of every session. Saves state, writes snapshot, creates handoff."
+description: "Run at end of every session. Launches 4 agents in parallel for fast shutdown (~30s)."
 ---
 
-# Session Shutdown Sequence
+# Session Shutdown — Agent-Powered (4 Parallel Agents)
 
-Execute ALL steps before ending the session:
+Launch ALL 4 agents simultaneously. Each agent gets the session context it needs inline.
 
-1. **Update session-state.md:**
-   Overwrite {YOUR_HOME}/Documents/claude-context/session-state.md with:
-   - Current status, what was just completed
-   - Immediate next tasks (numbered, specific)
-   - Blockers
-   - Files modified this session
+## Agent 1: Archive Agent
+> Update session-state.md with current status, next tasks, blockers, files modified.
+> Append a dated session entry to claude-archive.md.
 
-2. **Write session snapshot:**
-   Create {YOUR_HOME}/Documents/claude-context/session-snapshots/{YYYY-MM-DD}T{HH-MM}-{role}-session-{N}.md
-   Include: status, done, next tasks, blockers, key decisions, files changed.
+## Agent 2: Snapshot Agent
+> Write session snapshot to session-snapshots/{YYYY-MM-DD}T{HH-MM}-{role}-session-{N}.md.
+> Write handoff prompt to handoff-prompts/{YYYY-MM-DD}T{HH-MM}-session-{N}.md.
+> FIRST LINE of handoff prompt MUST be the Skill Zero prepend.
+> Also write to next-session-prompt.md as backwards-compatible fallback.
+> Prune: if >10 snapshots exist, move oldest to archive/.
 
-3. **Write handoff prompt:**
-   Overwrite {YOUR_HOME}/Documents/claude-context/next-session-prompt.md with 2-4 sentences:
-   what was done, what is next, key context for the next session.
+## Agent 3: Discord Agent
+> Post to Discord #session-archive: brief summary of what was accomplished, decisions, next steps.
+> Post to your role's log channel (#brother-log or #proctor-log): session end notice.
 
-4. **Post to Discord #session-archive:**
-   Brief summary: what was accomplished, key decisions, next steps.
+## Agent 4: Knowledge Ingest Agent
+> POST to http://localhost:5678/webhook/knowledge-ingest with session files.
+> Fire-and-forget — do NOT wait for response. If it fails, exit cleanly.
 
-5. **Notify user** that state is saved and next session can pick up cleanly.
+## After All Return
+Notify the user that state is saved, handoff is written, and the next session can pick up cleanly.
+Show the handoff prompt content so the user can paste it into the next session if needed.
 SKILL
 ```
 
@@ -1492,6 +1572,50 @@ Start Claude Code, type `/session-start`, and confirm it runs through the startu
 
 ---
 
+## Section 8: trajectory.md — Rolling Session History (5 min)
+
+### What It Is
+
+`trajectory.md` is a single file that replaces reading 16+ individual session snapshots on startup. Instead of globbing for snapshot files and reading each one, the State Reader agent reads this one table and gets the full session history at a glance.
+
+**Location:** `{YOUR_HOME}/Documents/claude-context/trajectory.md`
+
+### Format
+
+The file is a Markdown table with these columns:
+
+```markdown
+# Session Trajectory
+
+| Session | Agent | Date | Time | Summary |
+|---------|-------|------|------|---------|
+| 122 | Brother | 2026-03-11 | 14:30 | Optimized startup skill — 3 agents to 2, removed boot recall |
+| 121 | Proctor | 2026-03-11 | 10:15 | Market analysis for Texas expansion — delegated deep dive to Brother |
+| 120 | Brother | 2026-03-10 | 22:00 | Fixed n8n webhook routing — 3 workflows updated |
+```
+
+### Rules
+
+- **Updated at end of each session** by the shutdown skill (Snapshot Agent appends a row)
+- **Parallel sessions on the same date** should be noted — if two rows share a date, the reader should flag potential overlap
+- **Keep it rolling** — prune entries older than 30 days to keep the file compact
+- **This is what startup reads instead of snapshots.** The State Reader agent reads trajectory.md, not individual snapshot files. Individual snapshots still exist for detailed drill-down but are not part of the boot path.
+
+### Setup
+
+```bash
+cat > {YOUR_HOME}/Documents/claude-context/trajectory.md << 'TRAJ'
+# Session Trajectory
+
+| Session | Agent | Date | Time | Summary |
+|---------|-------|------|------|---------|
+TRAJ
+```
+
+The shutdown skill populates this automatically. You do not need to maintain it by hand.
+
+---
+
 ## Post-Install Checklist
 
 Run through this to confirm all Phase 3 components are working:
@@ -1530,9 +1654,14 @@ Run through this to confirm all Phase 3 components are working:
 [ ] swarm-first-planning.md created in .claude/commands/
 [ ] Gate check template appears before first tool call on new tasks
 [ ] Solo hard cap (4 tool calls) is respected
+[ ] PreToolUse enforcement hook installed and warning at 4+ calls without gate check
+[ ] Phase transitions trigger re-check (analysis -> implementation = new Skill Zero pass)
 
-[ ] /session-start skill runs full startup sequence
-[ ] /session-end skill runs full shutdown sequence
+[ ] trajectory.md created in claude-context/
+[ ] Shutdown skill appends rows to trajectory.md
+
+[ ] /session-start skill launches 2 agents and presents briefing (~50K tokens)
+[ ] /session-end skill launches 4 agents and completes in ~30 seconds
 [ ] /recall and /remember skills work with Knowledge Layer
 [ ] /commit skill runs standardized git workflow
 ```

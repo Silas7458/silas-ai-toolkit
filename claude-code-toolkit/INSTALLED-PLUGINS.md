@@ -152,9 +152,14 @@ workflow system and the custom Tandem Team setup. Copy from `claude-code-toolkit
 
 These are referenced in `configs/claude-desktop-config.json.template` and require separate installation:
 
-| Server | Install method |
-|--------|---------------|
-| `MCP_DOCKER` | Docker Desktop with MCP gateway support — `docker mcp gateway run` |
-| `browser-use` | `uvx --from browser-use[cli] browser-use --mcp` (requires Python/uv) |
-| `Windows-MCP` | `uvx --from windows-mcp windows-mcp` (Windows only, requires Python/uv) |
-| `discord-mcp` | Download JAR from discord-mcp repo, requires Java 17+ (e.g. Amazon Corretto) |
+| Server | Install method | Default state |
+|--------|---------------|---------------|
+| `MCP_DOCKER` | Docker Desktop with MCP gateway support — `docker mcp gateway run` | Always enabled |
+| `browser-use` | `uvx --from browser-use[cli] browser-use --mcp` (requires Python/uv) | Enabled |
+| `Windows-MCP` | `uvx --from windows-mcp windows-mcp` (Windows only, requires Python/uv) | **Proctor only (Claude Desktop) — NOT needed for Brother (Claude Code terminal)** |
+| `discord-mcp` | Download JAR from discord-mcp repo, requires Java 17+ (e.g. Amazon Corretto) | Always enabled |
+| `google-drive-mcp` | OAuth-based Google Drive/Docs/Sheets MCP server | **Disabled by default — enable on-demand for Docs/Sheets/Slides editing (~16K tokens/turn)** |
+| `firecrawl` | `npx -y firecrawl-mcp` (requires Firecrawl API key) | **Disabled by default — enable on-demand for web scraping (context overhead)** |
+| `context7` | HTTP MCP server at `https://mcp.context7.com/mcp` (no auth) | Always enabled |
+| `n8n-mcp` | `npx -y n8n-mcp` (stdio) | Always enabled |
+| `voice@cctools-plugins` | Installed via plugin system (see Plugins section above) | **Disabled — high context overhead, enable only if needed** |

@@ -10,15 +10,15 @@
       "5. Adjust mcpServers to match the tools you actually have installed"
     ],
     "mcpServersIncluded": [
-      "MCP_DOCKER — Docker-based MCP gateway (requires Docker Desktop)",
-      "n8n-mcp — n8n workflow automation MCP server",
-      "windows-mcp — Windows UI automation (Windows only, requires uvx/Python)",
-      "google-drive-mcp — Google Drive/Docs/Sheets access (requires OAuth credentials)",
-      "discord-mcp — Discord bot integration (requires a Discord bot token + JAR)",
-      "context7 — Context7 library docs (HTTP, no auth required)",
+      "MCP_DOCKER — Docker-based MCP gateway (requires Docker Desktop) [ALWAYS ENABLED]",
+      "n8n-mcp — n8n workflow automation MCP server [ALWAYS ENABLED]",
+      "discord-mcp — Discord bot integration (requires a Discord bot token + JAR) [ALWAYS ENABLED]",
+      "context7 — Context7 library docs (HTTP, no auth required) [ALWAYS ENABLED]",
+      "windows-mcp — Windows UI automation [DISABLED — Proctor only (Claude Desktop), not needed for Brother]",
+      "google-drive-mcp — Google Drive/Docs/Sheets access [DISABLED — enable on-demand, ~16K tokens/turn]",
+      "firecrawl — Web scraping/crawling [DISABLED — enable on-demand, context overhead]",
       "playwright — DEPRECATED: Use Playwright CLI instead (4x more token-efficient). MCP config kept for reference only.",
-      "github — GitHub MCP server (requires a GitHub personal access token)",
-      "firecrawl — Web scraping/crawling (requires a Firecrawl API key)"
+      "github — GitHub MCP server [DISABLED — account suspended, use GitLab CLI instead]"
     ]
   },
 
@@ -63,6 +63,7 @@
         "fastmcp<3",
         "windows-mcp"
       ],
+      "disabled": true,
       "env": {
         "PYTHONIOENCODING": "utf-8"
       }
@@ -72,6 +73,7 @@
       "type": "stdio",
       "command": "{{HOME_DIR}}\.config\google-drive-mcp\start-server.cmd",
       "args": [],
+      "disabled": true,
       "env": {
         "GOOGLE_DRIVE_OAUTH_CREDENTIALS": "{{HOME_DIR}}\your-project\credentials\client_secret.json"
       }
@@ -129,6 +131,7 @@
             "-y",
             "firecrawl-mcp"
           ],
+          "disabled": true,
           "env": {
             "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_API_KEY_HERE"
           }

@@ -158,6 +158,8 @@ Start Claude Code and ask: `"Use Context7 to look up the latest React hooks docu
 **What:** Web search, page scraping, site crawling, and data extraction.
 **Why:** Brother can research anything on the web autonomously.
 
+> **⚠️ Token Budget Note:** Firecrawl should be **DISABLED by default** (`"disabled": true` in your `.claude.json` config). It adds significant context overhead every turn. Enable it on-demand only when a task specifically requires web scraping, search, or crawling, then disable it again after. This was identified in the Session #119 token audit.
+
 ### Get API Key:
 1. Go to https://www.firecrawl.dev/
 2. Sign up (free tier gives 500 credits/month)
@@ -403,10 +405,12 @@ Start Claude Code and ask: `"List my n8n workflows"`
 
 ---
 
-## Section 8: Windows MCP — Desktop Automation (10 min, Windows only)
+## Section 8: Windows MCP — Desktop Automation (10 min, Proctor only, Windows only)
 
-**What:** Screen reading, clicking, typing, window management. Brother can see and interact with the desktop.
-**Why:** Enables Brother to check on other agents, click UI buttons, take screenshots.
+**What:** Screen reading, clicking, typing, window management. Proctor can see and interact with the desktop.
+**Why:** Enables Proctor (Claude Desktop Chat tab) to perform GUI automation tasks.
+
+> **⚠️ Proctor Only.** Brother (Claude Code terminal) does NOT need Windows MCP. Brother has Bash, Playwright, and direct file access which covers all the same ground. Only install this if you're setting up Proctor (Claude Desktop Chat tab) for GUI automation. Keeping it on Brother wastes ~20+ deferred tool definitions per turn.
 
 ### Install:
 ```bash
@@ -444,10 +448,26 @@ Start Claude Code and ask: `"Take a screenshot of my desktop"`
 
 ---
 
-## Section 9: Google Drive MCP (15 min, optional)
+## Section 9: Google Drive MCP (15 min, optional — DISABLED by default)
 
 **What:** Read/write Google Docs, Sheets, and Slides directly from Claude Code.
 **Why:** Create and manage documents without leaving the terminal.
+
+> **⚠️ Token Budget Note:** Google Drive MCP should be **DISABLED by default** (`"disabled": true` in your `.claude.json` config). It burns ~16K tokens/turn when loaded. Brother enables it on-demand when a task requires Google Docs/Sheets/Slides editing, then disables it again after. A `/google-toggle` skill handles this automatically.
+>
+> **Tasks that NEED Google Drive MCP:**
+> - Creating/editing Google Docs, Sheets, Slides, or Presentations
+> - Formatting documents (text styles, paragraph styles, tables)
+> - Inserting images, smart chips, or comments into Google Docs
+> - PDF conversion via Google Drive
+>
+> **Tasks that do NOT need it (use `gws` CLI instead):**
+> - Listing Drive files
+> - Downloading/uploading files
+> - Reading spreadsheet data (`gws sheets read`)
+> - Calendar operations
+> - Gmail operations
+> - Basic Drive file management
 
 ### Step 1: Google Cloud Project
 1. Go to https://console.cloud.google.com/
@@ -515,10 +535,14 @@ These are already in the settings template. Just make sure they're set to `true`
 ### GSD Plugin (community — manual install):
 GSD (Get Stuff Done) adds project management, task tracking, and workflow agents.
 ```bash
-claude plugin install voice@cctools-plugins
 claude plugin install workflow@cctools-plugins
 claude plugin install aichat@cctools-plugins
 ```
+
+> **⚠️ Voice Plugin Note:** The voice plugin (`voicemode`) was disabled in the token audit — it adds significant context overhead every turn. Only enable if you specifically need voice interaction:
+> ```bash
+> claude plugin install voice@cctools-plugins   # Only if you need voice
+> ```
 
 ### Verify:
 Start Claude Code and type `/` — you should see all your installed slash commands listed.
@@ -580,22 +604,58 @@ Read this FIRST before asking me for credentials.
 
 ---
 
+## Section 12: Hooks — Automated Guardrails (5 min)
+
+Hooks fire automatically on specific Claude Code events (PreToolUse, PostToolUse, etc.) and enforce protocols mechanically instead of relying on the honor system.
+
+### Skill Zero PreToolUse Hook
+
+**What:** Counts tool calls in a session. If the agent hits 4+ tool calls without Skill Zero (swarm-first-planning gate check) output being visible in the conversation, it warns.
+**Why:** Enforces planning-before-execution mechanically. Without this, agents skip the planning gate 100% of the time when not explicitly reminded.
+
+Add this to `hooks.PreToolUse` in your `~/.claude/settings.json`:
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hook": "bash {{HOME_DIR}}/.claude/hooks/skill-zero-gate.sh"
+      }
+    ]
+  }
+}
+```
+
+The hook script (`~/.claude/hooks/skill-zero-gate.sh`) checks for Skill Zero output markers in the conversation context. If 4+ tool calls have fired without the planning template being visible, the hook emits a warning that blocks execution until the agent runs the gate check.
+
+**How it works:**
+1. Every tool call increments a counter (tracked in a temp file per session)
+2. The hook checks whether Skill Zero markers (e.g., `GATE CHECK`, `swarm-first-planning`) appeared in the conversation
+3. If counter >= 4 and no markers found, the hook returns a warning message
+4. The agent sees the warning and must run the planning gate before continuing
+
+> **Note:** Replace `{{HOME_DIR}}` with your actual home path. The hook script template is provided in `claude-code-toolkit/hooks/skill-zero-gate.sh`.
+
+---
+
 ## Post-Install Checklist
 
 After completing the sections above, run through this checklist:
 
 ```
 [ ] .claude.json has all MCP servers configured with real paths
-[ ] settings.json has permissions and plugins configured
+[ ] settings.json has permissions, plugins, and hooks configured
 [ ] Playwright: "Open google.com" works
 [ ] Context7: Library doc lookup works
-[ ] Firecrawl: Web search works (if installed)
+[ ] Firecrawl: DISABLED by default ("disabled": true) — enable on-demand for web scraping
 [ ] Discord: Read/send messages works (if installed)
 [ ] Docker: Containers visible and manageable
 [ ] n8n: API responds, workflows listable (if installed)
-[ ] Windows MCP: Screenshots work (if Windows)
-[ ] Google Drive: File listing works (if installed)
-[ ] Plugins: /slash commands appear
+[ ] Windows MCP: Proctor (Claude Desktop) ONLY — do NOT enable for Brother
+[ ] Google Drive: DISABLED by default ("disabled": true) — enable on-demand via /google-toggle
+[ ] Plugins: /slash commands appear (voice plugin disabled unless needed)
+[ ] Skill Zero hook: PreToolUse gate check configured in settings.json
 [ ] council-config.json created with all credentials
 [ ] CLAUDE.md updated to reference credential vault
 ```

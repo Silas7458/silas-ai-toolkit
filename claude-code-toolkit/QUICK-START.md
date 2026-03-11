@@ -46,6 +46,12 @@ On every new session, IMMEDIATELY read these files BEFORE generating any respons
 
 **DO NOT respond to the user's first message until you have read items 1-2.**
 
+### Skill Zero — Mandatory Planning Gate
+
+Before ANY task (after startup), run the **Swarm-First Planning** gate check. This is a 6-line cost analysis that determines whether to go solo or deploy agents. Its output MUST be visible in the conversation before your first tool call on any task. No exceptions — "but this task is simple" is the exact thought this exists to intercept.
+
+Phase 2 covers the enforcement hook and full skill file setup. For now, internalize the rule: **plan visibly before executing.**
+
 ---
 
 ## SESSION END PROTOCOL — MANDATORY BEFORE ENDING ANY SESSION
@@ -82,7 +88,8 @@ On every new session, IMMEDIATELY read these files BEFORE generating any respons
 Context window blowouts are the #1 failure mode. These rules prevent them:
 
 ### Context Checkpoints — Non-Negotiable
-- **At 90% used:** Begin shutdown protocol IMMEDIATELY. No new tool calls except state saves.
+- **ONE checkpoint: 90%.** At 90% context used, begin shutdown protocol IMMEDIATELY. No new tool calls except state saves.
+- Not 60%. Not 80%. **Ninety.** That's it. One checkpoint.
 
 **Do NOT stop work early to "save context." FINISH THE JOB.** The next session NEVER picks up at the same speed or momentum.
 
@@ -216,6 +223,7 @@ Create these folders before your first session:
 {YOUR_HOME}/Documents/claude-context/
 ├── session-state.md              ← Current state (overwritten each session)
 ├── next-session-prompt.md        ← Handoff to next session (overwritten)
+├── trajectory.md                 ← Rolling session history table (replaces reading individual snapshots at startup)
 ├── session-snapshots/            ← Rolling session history (keep last 10)
 │   └── archive/                  ← Older snapshots moved here
 ├── deliverables/                 ← All agent output and deliverables
@@ -272,6 +280,21 @@ See Phase 3 guide (PHASE-3-ADVANCED.md) Section 7 for creating `.claude/commands
 
 ### Tier 3 — Memory System
 See Phase 3 guide (PHASE-3-ADVANCED.md) Section 4 for setting up persistent memory with `.claude/projects/{project}/memory/MEMORY.md`, pgvector recall, and Gemini long-term memory.
+
+**Key pattern — Pointer Files:**
+MEMORY.md is an **INDEX**, not a memory dump. It contains short summaries with pointers to individual memory files — never the full rules themselves.
+
+- Individual memories go in separate `.md` files under `memory/` with frontmatter (`name`, `description`, `type`)
+- Types: `user`, `feedback`, `project`, `reference`
+- Keep MEMORY.md under **200 lines** — it loads every conversation and counts against your context budget
+- For complex rules, create a detail file (e.g., `memory/skill-zero-details.md`) and put a one-line summary + pointer in MEMORY.md
+- Example MEMORY.md entry:
+  ```
+  ## SKILL ZERO GATE CHECK (PERMANENT — SESSION #98)
+  **Full protocol: see memory/skill-zero-details.md** — 6-line gate check, solo cap of 4 tool calls, mandatory agent verbs.
+  ```
+
+This pattern keeps startup fast while still giving you unlimited memory depth.
 
 ### Tier 4 — Team Expansion
 See Phase 3 guide (PHASE-3-ADVANCED.md) Sections 1-3 for adding Proctor (Claude Desktop), Discord server for team communication, and n8n for automated workflows (Council).
