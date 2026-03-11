@@ -639,6 +639,56 @@ The hook script (`~/.claude/hooks/skill-zero-gate.sh`) checks for Skill Zero out
 
 ---
 
+## Section 13: StatusLine — Ambient Token Meter (2 min)
+
+The statusLine is a persistent bar at the bottom of your Claude Code terminal. It updates after every assistant message and shows you what matters at a glance — model, directory, context usage, and **cumulative session token burn** (including background agents).
+
+**Why this matters:** When Brother spawns 4 parallel agents, your context window might show 30% but you've burned 400K+ tokens across those agents. The token meter makes that visible without switching windows.
+
+**What it shows:**
+```
+Opus 4.6 │ my-project │ ██████░░░░ 60% │ 341K tokens
+```
+
+- **Context bar:** Green (<63%), Yellow (<81%), Orange (<95%), Red/skull (95%+)
+- **Token count:** Blue, cumulative for the session (resets each new session)
+
+### Install
+
+The statusLine script is already in this repo:
+
+```bash
+# Copy the statusLine script to your hooks folder
+cp claude-code-toolkit/configs/hooks/gsd-statusline.js ~/.claude/hooks/gsd-statusline.js
+```
+
+Then add this to your `~/.claude/settings.json`:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node \"{{HOME_DIR}}/.claude/hooks/gsd-statusline.js\""
+  }
+}
+```
+
+> **Note:** Replace `{{HOME_DIR}}` with your actual home path (e.g., `C:/Users/scotty`).
+
+### Verify
+
+Start a new Claude Code session. After your first message, you should see the status bar at the bottom with model name, context bar, and token count.
+
+### How it works
+
+Claude Code's statusLine API pushes a JSON blob to the script via stdin after every assistant message. The blob includes `context_window.total_input_tokens`, `context_window.total_output_tokens`, `context_window.remaining_percentage`, and more. The script formats and colorizes the output. Zero API token cost — it's free metadata.
+
+### Customization
+
+You can generate a custom statusLine from natural language using `/statusline` in Claude Code. But the provided script is battle-tested and includes the token meter that stock statusLines don't have.
+
+---
+
 ## Post-Install Checklist
 
 After completing the sections above, run through this checklist:
@@ -656,6 +706,7 @@ After completing the sections above, run through this checklist:
 [ ] Google Drive: DISABLED by default ("disabled": true) — enable on-demand via /google-toggle
 [ ] Plugins: /slash commands appear (voice plugin disabled unless needed)
 [ ] Skill Zero hook: PreToolUse gate check configured in settings.json
+[ ] StatusLine: Token meter visible at bottom of terminal after first message
 [ ] council-config.json created with all credentials
 [ ] CLAUDE.md updated to reference credential vault
 ```
