@@ -53,7 +53,7 @@ On every new session, IMMEDIATELY read these files BEFORE generating any respons
 **Trigger conditions — do this when ANY of these happen:**
 - {YOUR_NAME} says "wrap up", "that's it", "good night", "end session", or similar
 - {YOUR_NAME} says "hand off" / "do the handoff" / "save state"
-- You hit ~80% context usage
+- You hit ~90% context usage
 - You're about to suggest starting a new session
 - The conversation is clearly ending
 
@@ -82,14 +82,17 @@ On every new session, IMMEDIATELY read these files BEFORE generating any respons
 Context window blowouts are the #1 failure mode. These rules prevent them:
 
 ### Context Checkpoints — Non-Negotiable
-- **At 80% used:** STOP new work. Summarize status. Ask {YOUR_NAME}: continue or new session?
 - **At 90% used:** Begin shutdown protocol IMMEDIATELY. No new tool calls except state saves.
+
+**Do NOT stop work early to "save context." FINISH THE JOB.** The next session NEVER picks up at the same speed or momentum.
 
 ### Agent Output Protocol
 When spawning sub-agents (Agent tool), EVERY agent spawn prompt MUST include:
 > "Write your full report to {YOUR_HOME}/Documents/claude-context/deliverables/{filename}. Return ONLY a 3-line summary: (1) status, (2) top finding, (3) file path."
 
 **NEVER let agents return full results inline.** This single rule prevents the most common context blowout.
+
+**Fallback rule:** If the Write tool fails inside an agent, the agent should return content inline as fallback — do NOT attempt workarounds like writing Python scripts.
 
 ---
 
@@ -98,11 +101,17 @@ When spawning sub-agents (Agent tool), EVERY agent spawn prompt MUST include:
 Before starting any non-trivial task, do a quick mental decomposition:
 
 ```
-1. VERBS: What verbs describe this task? (build, fix, research, deploy, etc.)
-2. SUBTASK COUNT: How many distinct subtasks do those verbs imply?
-3. PARALLELISM: Can any subtasks run in parallel using the Agent tool?
-4. DECISION: Multiple subtasks? → Consider spawning agents. Single mechanical step? → Do it yourself.
+1. TASK: [one sentence description]
+2. SOLO ESTIMATE: [N tool calls] x [~75 lines each] = [total lines into context] | ~[M minutes]
+   Multiplier: investigate/diagnose = 3x, build/fix = 2x, simple edit = 1x
+3. AGENT ESTIMATE: [N agents] x [3-line summary] = [total lines into context] | ~[M minutes parallel]
+4. SAVINGS: [solo lines] - [agent lines] = [lines saved] ([X%] reduction)
+5. VERB CHECK: [list verbs] — Mandatory agent verbs present? [YES/NO]
+   Mandatory agent verbs (always agents, no override): investigate, audit, research, diagnose, analyze, evaluate, compare, assess, explore, review
+6. DECISION: AGENTS if savings >30% OR any mandatory verb. SOLO only if <30% savings AND no mandatory verbs AND estimate ≤4 tool calls.
 ```
+
+**Solo = max 4 tool calls.** If you hit call #4 and aren't done, STOP — re-plan with agents.
 
 **Key principle:** Your context window is expensive. Agent sub-processes are cheap. If there are 2+ independent subtasks, spawning agents to handle them in parallel is almost always better than doing everything sequentially yourself.
 
@@ -193,6 +202,10 @@ These rules each came from a real failure. Don't repeat them:
    `{YOUR_HOME}/Documents/claude-context/deliverables/`
    Naming: `{YYYY-MM-DD}-brother-{topic}.{ext}`
 
+8. **Skill-first protocol.** Before starting ANY task, scan your available skills list (/slash commands) for a matching skill. Use skills automatically — {YOUR_NAME} should never have to remind you.
+
+9. **Mid-task scope check.** At your 3rd tool call on any solo task, STOP and check — has the scope expanded? If yes, re-run the planning gate check. If it now says AGENTS, pivot immediately.
+
 ---
 
 ## REQUIRED FOLDER STRUCTURE
@@ -251,31 +264,17 @@ Read session-state.md and announce readiness.
 
 Once this foundation is stable (Brother remembers sessions, saves state, uses agents), here's what to add in order of impact:
 
-### Tier 1 — MCP Servers (add these one at a time)
-1. **Playwright CLI** — Browser automation. Brother can click UIs, test web apps, scrape data. (4x more token-efficient than the deprecated Playwright MCP.)
-   `npx playwright install chromium`
-2. **Context7** — Live library documentation lookup.
-3. **Firecrawl** — Web scraping and search.
-4. **Discord MCP** — If you set up a Discord server for team communication.
-5. **Google Drive MCP** — Read/write Google Docs and Sheets.
+### Tier 1 — MCP Servers
+See Phase 2 guide (PHASE-2-INFRASTRUCTURE.md) for full MCP server setup including Playwright, Context7, Firecrawl, Discord, and Google Drive.
 
 ### Tier 2 — Custom Skills
-Create `.claude/commands/` folder and add `.md` files for recurring tasks:
-- `session-start.md` — Automated startup checklist
-- `session-end.md` — Automated shutdown checklist
-- `commit.md` — Standardized git commit workflow
+See Phase 3 guide (PHASE-3-ADVANCED.md) Section 7 for creating `.claude/commands/` skills including session-start, session-end, and domain-specific workflows.
 
 ### Tier 3 — Memory System
-Set up `.claude/projects/{project}/memory/MEMORY.md` for persistent learning:
-- Key rules discovered during work
-- Error patterns and fixes
-- Project-specific conventions
-- {YOUR_NAME}'s preferences
+See Phase 3 guide (PHASE-3-ADVANCED.md) Section 4 for setting up persistent memory with `.claude/projects/{project}/memory/MEMORY.md`, pgvector recall, and Gemini long-term memory.
 
 ### Tier 4 — Team Expansion
-- Add **Proctor** (Claude Desktop) as strategic coordinator
-- Set up **Discord server** with channels for handoffs, logs, alerts
-- Add **n8n** for automated workflows (Council)
+See Phase 3 guide (PHASE-3-ADVANCED.md) Sections 1-3 for adding Proctor (Claude Desktop), Discord server for team communication, and n8n for automated workflows (Council).
 
 ---
 
