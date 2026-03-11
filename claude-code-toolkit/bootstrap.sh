@@ -430,7 +430,7 @@ echo -e "  3. ${CYAN}Test session save/restore${NC} — end the session, start a
 echo -e "     The new session should pick up where the last one left off"
 echo ""
 echo -e "  4. ${CYAN}Add MCP servers${NC} (when ready) — see SETUP-GUIDE.md Step 3"
-echo -e "     Priority order: Playwright > Context7 > Firecrawl > Discord"
+echo -e "     Priority order: Playwright CLI > Context7 > Firecrawl > Discord"
 echo ""
 echo -e "  5. ${CYAN}Re-run this script${NC} any time to check for new toolkit additions"
 echo -e "     It will never overwrite — only fill gaps"

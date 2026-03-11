@@ -86,7 +86,7 @@ See [INSTALLED-PLUGINS.md](./INSTALLED-PLUGINS.md) for the full list. Key instal
 
 # MCP servers
 npm install -g @anthropic-ai/claude-code  # Already done
-npm install -g @playwright/mcp            # Browser automation
+npx playwright install chromium             # Browser automation (Playwright CLI — replaces MCP)
 pip install windows-mcp                   # Desktop automation (Windows only)
 
 # Discord MCP -- requires building from source or downloading JAR
@@ -216,9 +216,9 @@ MCP servers extend Claude Code with external tools. Configure them in `~/.claude
 2. **Recommended MCP servers (in priority order):**
 
    **Tier 1 -- High Value:**
-   - **Playwright** -- Browser automation. No API keys needed.
+   - **Playwright CLI** -- Browser automation. No API keys needed. (Replaces deprecated Playwright MCP — 4x more token-efficient.)
      ```bash
-     npm install -g @playwright/mcp
+     npx playwright install chromium
      ```
    - **Docker MCP Gateway** -- If you use Docker for databases/services.
      ```bash

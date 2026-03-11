@@ -16,7 +16,7 @@
       "google-drive-mcp — Google Drive/Docs/Sheets access (requires OAuth credentials)",
       "discord-mcp — Discord bot integration (requires a Discord bot token + JAR)",
       "context7 — Context7 library docs (HTTP, no auth required)",
-      "playwright — Browser automation (npx, no auth required)",
+      "playwright — DEPRECATED: Use Playwright CLI instead (4x more token-efficient). MCP config kept for reference only.",
       "github — GitHub MCP server (requires a GitHub personal access token)",
       "firecrawl — Web scraping/crawling (requires a Firecrawl API key)"
     ]

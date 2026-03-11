@@ -109,31 +109,21 @@ node -e "JSON.parse(require('fs').readFileSync(process.env.HOME+'/.claude/settin
 
 ---
 
-## Section 2: Playwright MCP — Browser Automation (5 min)
+## Section 2: Playwright CLI — Browser Automation (5 min)
 
 **What:** Lets Brother control a web browser — click buttons, fill forms, scrape pages, test web apps.
 **Why first:** Biggest force multiplier. No API keys needed. Works immediately.
+**Note:** Playwright CLI replaces the deprecated Playwright MCP server. CLI is 4x more token-efficient.
 
 ### Install:
 ```bash
-# That's it — npx handles the rest. The template already has the config.
-npx @playwright/mcp@latest --help
-```
-
-The `.claude.json` template already has Playwright configured under a project entry. To make it global (available in all projects), move the `playwright` block from the `projects` section to the top-level `mcpServers` section:
-
-```json
-"playwright": {
-  "type": "stdio",
-  "command": "npx",
-  "args": ["@playwright/mcp@latest"],
-  "env": {}
-}
+# Install Playwright and browser binaries
+npx playwright install chromium
 ```
 
 ### Verify:
 Start Claude Code and ask: `"Open google.com in a browser"`
-Brother should launch a browser and navigate there.
+Brother should launch a browser and navigate there using the Playwright CLI tools.
 
 ### Troubleshooting:
 - "npx not found" → Install Node.js 18+

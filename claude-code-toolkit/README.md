@@ -152,7 +152,7 @@ See [playbooks/context-conservation.md](./playbooks/context-conservation.md) for
 
 Model Context Protocol (MCP) servers give Claude Code access to external tools and services. This toolkit documents configurations for:
 
-- **Playwright** -- Browser automation (web scraping, testing, research)
+- **Playwright CLI** -- Browser automation (web scraping, testing, research). Replaces deprecated Playwright MCP (4x more token-efficient).
 - **Discord** -- Team communication and logging
 - **Google Drive** -- Document management and sharing
 - **Docker MCP Gateway** -- Database access, memory, sequential thinking

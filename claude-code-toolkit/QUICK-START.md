@@ -252,8 +252,8 @@ Read session-state.md and announce readiness.
 Once this foundation is stable (Brother remembers sessions, saves state, uses agents), here's what to add in order of impact:
 
 ### Tier 1 — MCP Servers (add these one at a time)
-1. **Playwright MCP** — Browser automation. Brother can click UIs, test web apps, scrape data.
-   `npx @anthropic-ai/claude-code mcp add playwright -- npx @anthropic-ai/mcp-playwright`
+1. **Playwright CLI** — Browser automation. Brother can click UIs, test web apps, scrape data. (4x more token-efficient than the deprecated Playwright MCP.)
+   `npx playwright install chromium`
 2. **Context7** — Live library documentation lookup.
 3. **Firecrawl** — Web scraping and search.
 4. **Discord MCP** — If you set up a Discord server for team communication.
