@@ -49,11 +49,43 @@ No manual install command needed — enabling in config is sufficient.
 | `claude-md-management` | Yes | CLAUDE.md file management commands |
 | `code-simplifier` | Yes | Code simplification and refactoring commands |
 | `vercel` | Yes | Vercel deployment commands (`/deploy`, `/logs`, etc.) |
+| `skill-creator` | Yes | Build, modify, and benchmark custom skills |
 | `frontend-design` | No (disabled) | Frontend design and CSS tooling |
 | `hookify` | No (disabled) | Hook scaffolding and management |
 | `playground` | No (disabled) | Interactive code playground |
 | `plugin-dev` | No (disabled) | Plugin development scaffolding |
 | `security-guidance` | No (disabled) | Security review and guidance commands |
+
+### LSP Plugins (Language Server Protocol — Code Intelligence)
+
+11 LSP plugins providing code intelligence via the LSP tool. Requires `ENABLE_LSP_TOOL=1` in settings.json env.
+These auto-install when enabled in `settings.json`. Each plugin activates for its file type.
+
+**Requires language servers installed globally:**
+```bash
+npm install -g typescript-language-server pyright vscode-langservers-extracted
+pip install ast-grep-cli  # Companion structural search tool
+```
+
+| Plugin | Language | Language Server |
+|--------|----------|----------------|
+| `typescript-lsp` | TypeScript/JavaScript | typescript-language-server |
+| `python-lsp` | Python | pyright |
+| `go-lsp` | Go | gopls |
+| `rust-lsp` | Rust | rust-analyzer |
+| `java-lsp` | Java | eclipse.jdt.ls |
+| `c-cpp-lsp` | C/C++ | clangd |
+| `csharp-lsp` | C# | OmniSharp |
+| `php-lsp` | PHP | intelephense |
+| `kotlin-lsp` | Kotlin | kotlin-language-server |
+| `ruby-lsp` | Ruby | ruby-lsp |
+| `html-css-lsp` | HTML/CSS | vscode-langservers-extracted |
+
+**9 LSP operations available:** goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls
+
+**Token efficiency:** 250x reduction vs grep-based navigation (~52 tokens per LSP call vs ~11,536 for equivalent grep chain).
+
+> **Known issue (2026-03):** On Windows, the LSP tool loads but language servers may fail to spawn (PATH inheritance bug in Claude Code's Node.js child_process). Keep plugins enabled — they'll auto-work when Anthropic fixes the spawn path.
 
 ---
 

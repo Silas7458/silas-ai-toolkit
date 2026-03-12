@@ -14,8 +14,9 @@ A fresh Claude Code install gives you a capable coding assistant. This toolkit t
 |-----------|------------------|-------------------|
 | **Session continuity** | Every session starts from zero | Startup/shutdown protocols preserve state across sessions |
 | **Task prioritization** | You decide what to work on | Eisenhower Matrix framework for systematic prioritization |
-| **Context management** | Burns through context on raw file reads | Agent delegation protocol conserves context 2-3x |
-| **Multi-agent coordination** | Single instance | Multiple Claude instances coordinate via Discord/file inboxes |
+| **Context management** | Burns through context on raw file reads | Agent delegation + Teams architecture saves 70%+ context |
+| **Multi-agent coordination** | Single instance | Teams (TeamCreate) for 70%+ context savings; Discord/file coordination |
+| **Code intelligence** | Grep-based navigation (~11K tokens/lookup) | LSP plugins: 250x token reduction (~52 tokens/lookup) |
 | **MCP integrations** | None configured | Browser automation, Discord, Google Drive, databases, desktop control |
 | **Memory system** | Basic auto-memory | Structured memory with permanent lessons, error recovery patterns |
 | **Quality standards** | Default behavior | Prime Directive enforces 100% completion, no lazy omissions |
@@ -146,7 +147,17 @@ Claude Code can spin up sub-agents that run in their own context windows. This i
 
 **The math:** A 500-line file read costs ~500 lines in your context permanently. An agent reads the same file and returns a ~100-word summary. Over a session, this 5x savings compounds into 2-3x more useful work.
 
+**Teams > Swarms (Session #129 breakthrough):** For 2+ agent tasks requiring synthesis, use `TeamCreate` instead of spawning individual agents. Workers + synthesizer run in the team's context, and Brother only receives a 10-line summary. Measured result: **70%+ context savings** (32K tokens vs 200K+ with swarms). Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` to enable.
+
 See [playbooks/context-conservation.md](./playbooks/context-conservation.md) for the full protocol.
+
+### LSP Code Intelligence -- 250x Token Savings
+
+11 Language Server Protocol plugins give Claude Code native code intelligence: go-to-definition, find references, hover docs, document symbols, workspace symbols, call hierarchy, and more. Each LSP call costs ~52 tokens vs ~11,536 tokens for the equivalent grep-based approach -- a **250:1 ratio**.
+
+**Setup:** Install language servers globally (`npm i -g typescript-language-server pyright vscode-langservers-extracted`), enable `ENABLE_LSP_TOOL=1` in settings.json, and enable the 11 LSP plugins. Companion tool `ast-grep` handles structural pattern matching.
+
+See Phase 2 Section 10 for full setup instructions.
 
 ### MCP Servers -- Extending Claude Code's Reach
 

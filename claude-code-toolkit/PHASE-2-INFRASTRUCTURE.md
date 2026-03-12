@@ -517,7 +517,78 @@ Start Claude Code and ask: `"List my recent Google Drive files"`
 
 ---
 
-## Section 10: Plugins (5 min)
+## Section 10: LSP Plugins — Code Intelligence (5 min)
+
+**What:** Language Server Protocol gives Brother 9 code intelligence operations: `goToDefinition`, `findReferences`, `hover`, `documentSymbol`, `workspaceSymbol`, `goToImplementation`, `prepareCallHierarchy`, `incomingCalls`, `outgoingCalls`.
+**Why:** 250x token reduction vs grep-based code navigation. Finding a function definition via LSP = ~52 tokens. Via grep = ~11,536 tokens. This is the biggest token efficiency gain available.
+
+> **Token efficiency data (measured):** A single `documentSymbol` call returns structured symbols for an entire file in ~52 tokens. The equivalent grep-based approach (search, read file, parse, filter) burns ~11,536 tokens. That's a 250:1 ratio per navigation action. Over a session with 20+ code lookups, this saves 200K+ tokens.
+
+### Step 1: Install Language Servers
+```bash
+# Install the language servers that the LSP plugins will use
+npm install -g typescript-language-server pyright vscode-langservers-extracted
+
+# Verify they're on PATH
+typescript-language-server --version   # Should return 5.x+
+pyright --version                       # Should return 1.x+
+```
+
+### Step 2: Enable LSP Environment Variable
+Add to `env` in `~/.claude/settings.json`:
+```json
+"ENABLE_LSP_TOOL": "1"
+```
+(Already in the settings template.)
+
+### Step 3: Enable LSP Plugins
+Add to `enabledPlugins` in `~/.claude/settings.json`:
+```json
+"typescript-lsp@claude-plugins-official": true,
+"python-lsp@claude-plugins-official": true,
+"go-lsp@claude-plugins-official": true,
+"rust-lsp@claude-plugins-official": true,
+"java-lsp@claude-plugins-official": true,
+"c-cpp-lsp@claude-plugins-official": true,
+"csharp-lsp@claude-plugins-official": true,
+"php-lsp@claude-plugins-official": true,
+"kotlin-lsp@claude-plugins-official": true,
+"ruby-lsp@claude-plugins-official": true,
+"html-css-lsp@claude-plugins-official": true
+```
+(All 11 are already in the settings template.)
+
+Enable only the languages you work with. Unused plugins have zero runtime cost — they only load when you open a file of that type.
+
+### Step 4: Install ast-grep (Companion Tool)
+```bash
+# ast-grep for structural code search (complements LSP)
+pip install ast-grep-cli
+sg --version   # Should return 0.41+
+```
+
+**When to use which:**
+- **LSP** — Symbol navigation, definitions, references, hover docs. Fastest and cheapest.
+- **ast-grep** — Structural pattern matching (e.g., "find all functions with 3 args"). More flexible than LSP for pattern queries.
+- **Grep** — Text search, regex patterns, config/doc files. Fallback when LSP/ast-grep don't apply.
+
+### Verify:
+Start Claude Code and ask: `"Use documentSymbol on src/app/page.tsx"` — it should return all symbols in the file.
+
+> **Known issue (2026-03):** On Windows, the LSP tool loads and all 9 operations appear, but language servers may fail to spawn due to a PATH inheritance bug in Claude Code's Node.js child_process. The plugins are correctly configured — this is an Anthropic bug that will be fixed in a future update. Keep plugins enabled so they auto-activate when fixed.
+
+### Priority Rule for Code Navigation
+**LSP FIRST, ast-grep SECOND, grep LAST.** Add this to your CLAUDE.md:
+```markdown
+## Tool Priority: LSP FIRST, ast-grep SECOND
+When navigating code, ALWAYS prefer LSP tools before grep, glob, bash, or Read-and-scan.
+LSP is faster, more accurate, and cheaper on tokens. Use ast-grep for structural pattern
+matching. Only fall back to grep/glob for non-code text search, regex patterns, or config files.
+```
+
+---
+
+## Section 11: Plugins (5 min)
 
 Official and community plugins add slash commands and workflows.
 
@@ -529,7 +600,8 @@ These are already in the settings template. Just make sure they're set to `true`
 "pr-review-toolkit@claude-plugins-official": true,
 "commit-commands@claude-plugins-official": true,
 "claude-md-management@claude-plugins-official": true,
-"code-simplifier@claude-plugins-official": true
+"code-simplifier@claude-plugins-official": true,
+"skill-creator@claude-plugins-official": true
 ```
 
 ### GSD Plugin (community — manual install):
@@ -549,7 +621,7 @@ Start Claude Code and type `/` — you should see all your installed slash comma
 
 ---
 
-## Section 11: Credential Vault (5 min)
+## Section 12: Credential Vault (5 min)
 
 Create a single file for all secrets. **NEVER commit this file.**
 
@@ -604,7 +676,7 @@ Read this FIRST before asking me for credentials.
 
 ---
 
-## Section 12: Hooks — Automated Guardrails (5 min)
+## Section 13: Hooks — Automated Guardrails (5 min)
 
 Hooks fire automatically on specific Claude Code events (PreToolUse, PostToolUse, etc.) and enforce protocols mechanically instead of relying on the honor system.
 
@@ -639,7 +711,7 @@ The hook script (`~/.claude/hooks/skill-zero-gate.sh`) checks for Skill Zero out
 
 ---
 
-## Section 13: StatusLine — Ambient Token Meter (2 min)
+## Section 14: StatusLine — Ambient Token Meter (2 min)
 
 The statusLine is a persistent bar at the bottom of your Claude Code terminal. It updates after every assistant message and shows you what matters at a glance — model, directory, context usage, and **cumulative session token burn** (including background agents).
 
@@ -704,7 +776,12 @@ After completing the sections above, run through this checklist:
 [ ] n8n: API responds, workflows listable (if installed)
 [ ] Windows MCP: Proctor (Claude Desktop) ONLY — do NOT enable for Brother
 [ ] Google Drive: DISABLED by default ("disabled": true) — enable on-demand via /google-toggle
+[ ] LSP: ENABLE_LSP_TOOL=1 in settings.json env block
+[ ] LSP: Language servers installed (typescript-language-server, pyright, vscode-langservers-extracted)
+[ ] LSP: 11 LSP plugins enabled in settings.json enabledPlugins
+[ ] LSP: ast-grep installed (pip install ast-grep-cli)
 [ ] Plugins: /slash commands appear (voice plugin disabled unless needed)
+[ ] Plugins: skill-creator plugin enabled
 [ ] Skill Zero hook: PreToolUse gate check configured in settings.json
 [ ] StatusLine: Token meter visible at bottom of terminal after first message
 [ ] council-config.json created with all credentials

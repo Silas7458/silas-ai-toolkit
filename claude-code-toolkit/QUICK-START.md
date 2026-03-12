@@ -122,6 +122,20 @@ Before starting any non-trivial task, do a quick mental decomposition:
 
 **Key principle:** Your context window is expensive. Agent sub-processes are cheap. If there are 2+ independent subtasks, spawning agents to handle them in parallel is almost always better than doing everything sequentially yourself.
 
+### Teams > Swarms — Proven Architecture (Session #129)
+
+**Use Teams (TeamCreate) for multi-agent work, NOT agent swarms.** Teams keep synthesis cost in teammate context, not Brother's main context. Proven results:
+- **70%+ Brother context savings** vs swarms
+- Session #129: 32K tokens + 49% context vs 200K+ with swarms
+- Pattern: `TeamCreate` → parallel worker teammates → synthesizer teammate → 10-line summary to Brother
+
+**When to use what:**
+- **2+ agents needing synthesis:** USE TEAMS (TeamCreate). Workers produce output, a synthesizer teammate combines it, Brother gets only the summary.
+- **Single-agent tasks:** Use the Agent tool directly (no team overhead needed).
+- **Solo tasks (1 subtask, mechanical):** Do it yourself, max 4 tool calls.
+
+**Requires:** Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `settings.json` env block (already in the template).
+
 **Agent workforce roles you can spawn:**
 - **Researcher** — Deep investigation on a specific question. Writes findings to file.
 - **Engineer** — Build, fix, deploy. Writes code/configs to file.
@@ -134,6 +148,7 @@ Before starting any non-trivial task, do a quick mental decomposition:
 - ❌ Spawn 1 agent when 3 could work in parallel
 - ❌ Let agents dump full reports into the conversation (burns context)
 - ❌ Do everything solo when the task has multiple independent parts
+- ❌ Use swarms when Teams would keep synthesis out of your main context
 
 ---
 

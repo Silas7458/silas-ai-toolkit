@@ -1175,6 +1175,33 @@ Skill Zero forces a 30-second planning pause before every task. It calculates wh
 
 When a task requires 5+ tool calls, agents save 80%+ of context compared to solo execution.
 
+### Teams > Swarms — The Proven Architecture (Session #129)
+
+**Use Teams (TeamCreate) for 2+ agent multi-agent work, NOT agent swarms.** This is the single biggest architecture decision for context efficiency.
+
+**The problem with swarms:** When you spawn 3 agents via the Agent tool, each returns a summary to Brother's main context. If one agent produces a 500-line report and returns a 5-line summary, great. But if you need those agents' outputs **synthesized** (combined, compared, merged), Brother has to read all 3 output files, synthesize them, and that synthesis burns 200K+ tokens in Brother's main context.
+
+**The Teams solution:** TeamCreate spawns teammates that share a separate context. Worker teammates produce output, a synthesizer teammate reads and combines it — all within the team's context, NOT Brother's. Brother only receives the final 10-line summary.
+
+**Measured results (Session #129):**
+| Metric | Swarms | Teams | Savings |
+|--------|--------|-------|---------|
+| Brother context | 200K+ tokens | 32K tokens | **70%+** |
+| Context window used | 85%+ | 49% | **36 percentage points** |
+| Agent work quality | Same | Same | — |
+
+**Pattern:**
+```
+TeamCreate → parallel worker teammates → synthesizer teammate → 10-line summary to Brother
+```
+
+**When to use what:**
+- **2+ agents needing synthesis:** USE TEAMS (TeamCreate)
+- **Single-agent tasks:** Use Agent tool directly (no team overhead)
+- **Solo tasks (1 subtask, mechanical):** Do it yourself, max 4 tool calls
+
+**Requires:** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in settings.json env block (already in the template).
+
 ### The Cost-Based Gate Check
 
 Before every non-trivial task, run this 6-line analysis:
@@ -1295,7 +1322,7 @@ SKILL
 6. DECISION: AGENTS -- mandatory verb "investigate" + 99% context savings
 ```
 
-Result: Spawn 3 agents — one reads logs, one traces the route handler, one checks database queries. Each returns a summary. You synthesize.
+Result: Use TeamCreate — 3 worker teammates (logs reader, route tracer, DB query checker) + 1 synthesizer teammate. The synthesizer combines all findings within the team context. Brother gets a 10-line summary. Zero synthesis cost in main context.
 
 ### Agent Reliability — What We Learned
 
@@ -1656,6 +1683,11 @@ Run through this to confirm all Phase 3 components are working:
 [ ] Solo hard cap (4 tool calls) is respected
 [ ] PreToolUse enforcement hook installed and warning at 4+ calls without gate check
 [ ] Phase transitions trigger re-check (analysis -> implementation = new Skill Zero pass)
+[ ] Teams (TeamCreate) used for 2+ agent tasks — CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 set
+[ ] LSP plugins enabled (ENABLE_LSP_TOOL=1 + 11 plugins in settings.json)
+[ ] Language servers installed (typescript-language-server, pyright, vscode-langservers-extracted)
+[ ] ast-grep installed for structural code search (pip install ast-grep-cli)
+[ ] CLAUDE.md includes "LSP FIRST, ast-grep SECOND" priority rule
 
 [ ] trajectory.md created in claude-context/
 [ ] Shutdown skill appends rows to trajectory.md
@@ -1691,6 +1723,8 @@ Phase 4 will be pushed to this repo when you are ready. Pull and check the toolk
 # - Persistent memory across sessions via dual-source Knowledge Layer
 # - Event-driven hooks for auto-formatting, context tracking, and conflict prevention
 # - Mandatory planning protocol that prevents context blowouts
+# - Teams architecture (TeamCreate) for 70%+ context savings on multi-agent work
+# - LSP code intelligence (11 language servers, 9 operations, 250x token savings vs grep)
 # - A growing skill library that automates recurring work
 #
 # The system is designed to compound: every skill you add, every learning you store,

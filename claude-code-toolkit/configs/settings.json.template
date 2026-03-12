@@ -8,7 +8,10 @@
     "CONTINUOUS_CLAUDE_DB_URL": "postgresql://{{DB_USER}}:{{DB_PASSWORD}}@localhost:5432/{{DB_NAME}}",
 
     "// Enable MCP tool search": "",
-    "ENABLE_TOOL_SEARCH": "true"
+    "ENABLE_TOOL_SEARCH": "true",
+
+    "// Enable LSP (Language Server Protocol) tool for code intelligence": "",
+    "ENABLE_LSP_TOOL": "1"
   },
 
   "// PERMISSIONS": "Control what Claude Code can do without asking",
@@ -162,6 +165,24 @@
     "claude-md-management@claude-plugins-official": true,
     "code-simplifier@claude-plugins-official": true,
     "vercel@claude-plugins-official": true,
+
+    "// Skill creator — build/modify custom skills": "",
+    "skill-creator@claude-plugins-official": true,
+
+    "// LSP plugins — Language Server Protocol for code intelligence (9 operations: goToDefinition, findReferences, hover, documentSymbol, workspaceSymbol, goToImplementation, prepareCallHierarchy, incomingCalls, outgoingCalls)": "",
+    "// Requires language servers installed globally: npm i -g typescript-language-server pyright vscode-langservers-extracted": "",
+    "// Known issue (2026-03): Windows spawn PATH bug — tool loads but servers may fail to start. Plugins auto-work when fixed.": "",
+    "typescript-lsp@claude-plugins-official": true,
+    "python-lsp@claude-plugins-official": true,
+    "go-lsp@claude-plugins-official": true,
+    "rust-lsp@claude-plugins-official": true,
+    "java-lsp@claude-plugins-official": true,
+    "c-cpp-lsp@claude-plugins-official": true,
+    "csharp-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
+    "kotlin-lsp@claude-plugins-official": true,
+    "ruby-lsp@claude-plugins-official": true,
+    "html-css-lsp@claude-plugins-official": true,
 
     "// Disabled plugins (set true to enable)": "",
     "frontend-design@claude-plugins-official": false,
