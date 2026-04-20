@@ -214,20 +214,36 @@ async def add_drive_source(
     title: str,
     mime_type: str,
 ) -> tuple[bool, str, str]:
-    """Returns (ok, message, source_id)."""
+    """Returns (ok, message, source_id).
+
+    Race-safe: if add_drive raises (seen with large files still being
+    scanned by Drive), list sources and check whether one was created
+    anyway. If found, treat as success. This prevents the "error but
+    source persists" double-ingest duplicate pattern observed in S205.
+    """
     try:
         from notebooklm.client import NotebookLMClient
     except Exception as e:
         return False, f"import failed: {e}", ""
     try:
         async with NotebookLMClient(auth=tokens) as client:
-            src = await client.sources.add_drive(
-                notebook_id,
-                file_id=file_id,
-                title=title,
-                mime_type=mime_type,
-            )
-            return True, f"ingested source_id={src.id[:12]}... title={src.title!r}", src.id
+            try:
+                src = await client.sources.add_drive(
+                    notebook_id,
+                    file_id=file_id,
+                    title=title,
+                    mime_type=mime_type,
+                )
+                return True, f"ingested source_id={src.id[:12]}... title={src.title!r}", src.id
+            except Exception as e:
+                sources = await client.sources.list(notebook_id)
+                match = next((s for s in sources if s.title == title), None)
+                if match is not None:
+                    return True, (
+                        f"ingested despite {type(e).__name__}: source_id={match.id[:12]}... "
+                        f"title={match.title!r} (post-error recovery via source list check)"
+                    ), match.id
+                return False, f"add_drive raised {type(e).__name__}: {e}", ""
     except Exception as e:
         return False, f"add_drive raised {type(e).__name__}: {e}", ""
 
