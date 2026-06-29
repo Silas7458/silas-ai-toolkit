@@ -36,7 +36,7 @@ from notebooklm.client import NotebookLMClient
 
 with open('C:/Users/silas/.hospice-regs/config.json') as f:
     cfg = json.load(f)
-with open('C:/Users/silas/.notebooklm/storage-state.json') as f:
+with open('C:/Users/silas/.notebooklm/profiles/default/storage_state.json') as f:
     storage = json.load(f)
 
 cookies = extract_cookies_from_storage(storage)

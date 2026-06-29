@@ -3,7 +3,7 @@
 NotebookLM cookie keepalive + health check - WEEKLY scheduled task.
 
 Why this exists:
-    notebooklm-py saves Google cookies to ~/.notebooklm/storage-state.json
+    notebooklm-py saves Google cookies to ~/.notebooklm/profiles/default/storage_state.json
     when you first log in. Google's server-side session invalidation kicks
     in after ~12 days of zero activity against those cookies. The purpose
     of this script is to (a) exercise the cookies so Google's activity

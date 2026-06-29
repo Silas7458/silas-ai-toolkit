@@ -163,7 +163,7 @@ async def check_notebooklm_canary(canary_substring: str) -> tuple[bool, str, obj
     except Exception as e:
         return False, f"notebooklm python package not importable: {e}", None
 
-    storage_path = Path("C:/Users/silas/.notebooklm/storage-state.json")
+    storage_path = Path("C:/Users/silas/.notebooklm/profiles/default/storage_state.json")
     if not storage_path.exists():
         return False, f"storage state missing: {storage_path}", None
 
