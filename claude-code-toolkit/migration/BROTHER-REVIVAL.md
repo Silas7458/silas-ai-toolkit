@@ -20,12 +20,25 @@ PART 0 - FOR SILAS (human bootstrap, before Claude exists on the new machine)
 0.2  Plug in the MIGRATION drive. Unlock with your BitLocker password
      (the one you set interactively; recovery key is on your off-machine photo).
 
-0.3  Install the minimum seed, in order (accept defaults):
-     a. PowerShell 7        winget install Microsoft.PowerShell
-     b. Git                 winget install Git.Git
-     c. Node.js LTS         winget install OpenJS.NodeJS.LTS
-     d. Claude Code         npm install -g @anthropic-ai/claude-code
-     e. Run "claude" once and sign in to your Anthropic account.
+0.3  Install the minimum seed, in order. Open a terminal first: right-click
+     the Start button -> Terminal. (winget ships with Windows 11; if it is
+     somehow missing, install "App Installer" from the Microsoft Store.)
+
+     a. PowerShell 7:
+        winget install Microsoft.PowerShell --accept-source-agreements --accept-package-agreements
+     b. Git:
+        winget install Git.Git --accept-package-agreements
+     c. Node.js LTS:
+        winget install OpenJS.NodeJS.LTS --accept-package-agreements
+
+     d. IMPORTANT: close the terminal COMPLETELY and open a new one now.
+        The new programs are not on the PATH until the terminal restarts;
+        skipping this makes npm come back "not recognized".
+
+     e. Claude Code:
+        npm install -g @anthropic-ai/claude-code
+     f. Run "claude" once and sign in to your Anthropic account (it opens
+        a browser to log in; approve and return to the terminal).
 
 0.4  Open a terminal, then:
      cd D:\MIGRATION        (use the actual drive letter)
