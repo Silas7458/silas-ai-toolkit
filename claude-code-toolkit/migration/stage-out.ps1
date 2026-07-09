@@ -198,6 +198,10 @@ Set-Content -Path (Join-Path $SEC 'SECRETS-README.txt') -Value $secLines
 $restore = @'
 # RESTORE RUNBOOK - new laptop
 
+REBUILDING BROTHER (Claude Code)? Start with BROTHER-REVIVAL.md in this folder.
+It is the full resurrection procedure (identity, programs, Docker, tasks,
+re-auth, verification). This file is the raw file-mapping reference behind it.
+
 Unlock this drive with the BitLocker password (recovery key is the backup).
 
 Order of operations:
@@ -231,6 +235,16 @@ dependency caches (.npm/.nuget/.cargo/...), browser caches,
 AppData beyond the five folders above. Databases live in Neon (cloud) - not on this drive.
 '@
 Set-Content -Path (Join-Path $ROOT '00-RUNBOOK\RESTORE.md') -Value $restore
+
+# Brother revival runbook: canonical copy lives next to this script; refresh
+# the drive copy every run so the launch codes are always current.
+$revivalSrc = Join-Path $PSScriptRoot 'BROTHER-REVIVAL.md'
+if (Test-Path -LiteralPath $revivalSrc) {
+    Copy-Item -LiteralPath $revivalSrc -Destination (Join-Path $ROOT '00-RUNBOOK\BROTHER-REVIVAL.md') -Force
+    Log 'BROTHER-REVIVAL.md refreshed on drive'
+} else {
+    Log 'WARN: BROTHER-REVIVAL.md not found next to stage-out.ps1 - drive copy not refreshed'
+}
 
 # ---------------------------------------------------------------- manifest + verify
 $totalFiles = 0; $totalBytes = 0; $mismatches = @(); $hashErrors = 0
