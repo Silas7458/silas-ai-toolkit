@@ -1,0 +1,12 @@
+{
+  "name": "gdrive-ops-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server exposing Google Drive write ops (move/rename/create-folder/trash/restore) via the gws CLI. Built for Proctor (Claude Desktop). No permanent delete by design.",
+  "main": "server.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  }
+}
