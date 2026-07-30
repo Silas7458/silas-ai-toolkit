@@ -91,7 +91,20 @@ parts.push({ text: prompt });
 // Image models return images by default; responseModalities is NOT needed and
 // the API has been observed holding connections open indefinitely on some
 // requests, so every attempt gets a hard timeout + retry instead.
-const req = { contents: [{ parts }] };
+// Most-permissive safety thresholds the API allows. The consumer Gemini and
+// ChatGPT UIs add an extra moderation layer on top of the model that false-
+// positives on cinematic action (cavalry charges, battle scenes); the raw API
+// with these settings renders R-rated production content. Google keeps one
+// non-configurable server-side layer regardless (finishReason IMAGE_SAFETY /
+// PROHIBITED_CONTENT when it fires).
+const SAFETY = [
+  'HARM_CATEGORY_HARASSMENT',
+  'HARM_CATEGORY_HATE_SPEECH',
+  'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+  'HARM_CATEGORY_DANGEROUS_CONTENT',
+].map((category) => ({ category, threshold: 'BLOCK_ONLY_HIGH' }));
+
+const req = { contents: [{ parts }], safetySettings: SAFETY };
 if (ar || size) {
   req.generationConfig = { imageConfig: {} };
   if (ar) req.generationConfig.imageConfig.aspectRatio = ar;
@@ -127,7 +140,11 @@ if (!res.ok) fail('API ' + res.status + ': ' + JSON.stringify(data.error || data
 
 const cand = data.candidates && data.candidates[0];
 if (!cand || !cand.content || !cand.content.parts) {
-  fail('No candidate returned. finishReason=' + (cand && cand.finishReason) +
+  const reason = (cand && cand.finishReason) || 'unknown';
+  const hint = /SAFETY|PROHIBITED/.test(reason)
+    ? ' [Google server-side filter fired - rephrase the shot; safetySettings are already at the most permissive tier]'
+    : '';
+  fail('No candidate returned. finishReason=' + reason + hint +
     ' promptFeedback=' + JSON.stringify(data.promptFeedback || {}));
 }
 

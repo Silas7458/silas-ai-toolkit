@@ -22,3 +22,4 @@ Options: --ref (repeatable, up to 14 on Pro), --model (default gemini-3-pro-imag
 
 - The API sometimes holds a connection open indefinitely; every attempt has a hard timeout + retry.
 - Claude Code Bash sandbox HANGS (not errors) node fs writes under C:/Users/<user>/Pictures - default output is tool-local `out/`, use Documents for project art.
+- Safety thresholds are pinned to the most permissive API tier (BLOCK_ONLY_HIGH all categories) - cinematic action/battle content renders; only Google's non-configurable server layer remains (surfaced as finishReason IMAGE_SAFETY with a rephrase hint).
