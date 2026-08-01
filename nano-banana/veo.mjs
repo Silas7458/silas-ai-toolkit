@@ -14,11 +14,12 @@ const DEFAULT_OUT = 'C:/Users/silas/Documents/last-roman/clips';
 function fail(msg) { console.error('ERROR: ' + msg); process.exit(1); }
 
 const argv = process.argv.slice(2);
-let prompt = null, img = null, name = null;
+let prompt = null, img = null, name = null, lastImg = null;
 let model = DEFAULT_MODEL, outDir = DEFAULT_OUT, seconds = 6, res = '720p', timeoutS = 420;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--img') img = argv[++i];
+  else if (a === '--last') lastImg = argv[++i];
   else if (a === '--name') name = argv[++i];
   else if (a === '--model') model = argv[++i];
   else if (a === '--seconds') seconds = parseInt(argv[++i], 10);
@@ -42,11 +43,13 @@ if (!key) {
 if (!key) fail('GEMINI_API_KEY not found');
 
 const mime = img.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+const inst = { prompt, image: { bytesBase64Encoded: fs.readFileSync(img).toString('base64'), mimeType: mime } };
+if (lastImg) {
+  const lm = lastImg.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+  inst.lastFrame = { bytesBase64Encoded: fs.readFileSync(lastImg).toString('base64'), mimeType: lm };
+}
 const body = JSON.stringify({
-  instances: [{
-    prompt,
-    image: { bytesBase64Encoded: fs.readFileSync(img).toString('base64'), mimeType: mime },
-  }],
+  instances: [inst],
   parameters: { aspectRatio: '16:9', resolution: res, durationSeconds: seconds },
 });
 
