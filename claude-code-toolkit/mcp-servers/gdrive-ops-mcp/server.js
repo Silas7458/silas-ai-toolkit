@@ -1274,6 +1274,7 @@ server.tool(
     "Pipeline: pull the CURRENT atlas_data.json from Drive -> gen_atlas.py -> measure.py (refuses if any hour would spill to a 3rd page) -> render_pdf.py -> pagemap.py (verifies 4 + 2N + 1 pages) -> sync HTML, PDF and JSON back to Drive.",
     "Typical use: first drive_upload_chunked the edited atlas_data.json into the atlas folder, then call this. Takes ~60-90 s. Returns the build log; read the last lines for BUILD OK / SYNC OK or the STOP reason.",
     "Only works while Brother's PC is on (the generator and Chromium live there).",
+    "FULL WORKFLOW to add or change an hour (Claude Desktop does not show server-level instructions, so it lives here): (1) drive_find the folder 'STORY-SHAPE ATLAS - SOURCE' and docs_get_text the Google Doc '00 - READ ME FIRST - STORY-SHAPE ATLAS' inside it. (2) Download atlas_data.json and edit it in your sandbox - one JSON entry per hour, rules in ATLAS-HANDOFF.md section (g): pct sums to 100, act minutes sum to rt, summary ~325-345 words. (3) drive_upload_chunked the edited atlas_data.json back into that folder (upload_id 'atlas-json', final name 'atlas_data.json'). (4) atlas_rebuild. (5) Mirror the hour into the Doc 'THE LAST ROMAN - STORY-SHAPE ATLAS - DATA & ANALYSIS' with docs_replace_text / docs_insert_text. Brother is not needed unless this tool returns a STOP.",
   ].join(" "),
   {
     pull: z.boolean().optional().describe("Pull atlas_data.json from Drive before building (default true). false = build from whatever is on Brother's disk."),
