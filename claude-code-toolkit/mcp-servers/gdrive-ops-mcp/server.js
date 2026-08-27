@@ -38,6 +38,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { execFile } from "node:child_process";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 
 const GWS_EXE =
   process.env.GDRIVE_OPS_GWS_EXE ||
@@ -65,6 +67,7 @@ function gws(args, opts) {
         timeout: o.timeout || 60000,
         maxBuffer: o.maxBuffer || 16 * 1024 * 1024,
         windowsHide: true,
+        cwd: o.cwd || undefined, // gws refuses --upload paths outside its cwd: stage there, pass a relative name
       },
       (err, stdout, stderr) => {
         if (err) {
@@ -402,13 +405,17 @@ function overlaps(a, b) {
 // ---------------------------------------------------------------------------
 
 const server = new McpServer(
-  { name: "gdrive-ops", version: "1.2.0" },
+  { name: "gdrive-ops", version: "1.3.0" },
   {
     instructions: [
       "gdrive-ops: full Google Drive FILE-MANAGEMENT (write ops) + GOOGLE DOC READING, WRITING, INSERTING and IN-PLACE EDITING for the connected Google Drive account.",
       "",
       "CAPABILITY NOTE - READ THIS: The built-in Anthropic Google Drive connector is READ + CREATE only (no move, no rename, no delete, no in-place edits). THIS server removes those limits. You CAN now: MOVE files/folders (drive_move), RENAME (drive_rename), CREATE folders (drive_create_folder), TRASH (drive_trash, recoverable 30 days), RESTORE (drive_restore), resolve names to IDs (drive_find, drive_list_folder), CREATE A GOOGLE DOC WITH BODY TEXT (docs_create), READ a doc's full text (docs_get_text), LOCATE exact anchors with character offsets (docs_find), INSERT text at a position or around an anchor (docs_insert_text), REPLACE text in place (docs_replace_text), and apply MANY edits in one atomic revision (docs_replace_batch).",
       "Never tell the user a Drive file operation or a Doc edit is impossible because 'the connector is read-only'. Use these tools instead - do it yourself, do not ask the user to do it by hand.",
+      "",
+      "NEW IN v1.3.0 (27 Aug 2026) - LARGE FILE UPLOADS AND THE STORY-SHAPE ATLAS: The built-in connector truncates any inline file over ~2 KB, so you could never push a real file into Drive from the sandbox. drive_upload_chunked fixes that: send the file in pieces under 1500 characters (encoding 'text', or 'base64' for binary / byte-exact text), same upload_id each call, and pass final:true with name + parent_id on the last piece. If a file with that name already exists in that folder it is UPDATED IN PLACE (same id, new revision) - so re-uploading atlas_data.json replaces it, never duplicates it. Never tell the user a file is 'too big to upload' - chunk it.",
+      "atlas_rebuild runs THE LAST ROMAN Story-Shape Atlas build on Brother's Windows machine: pulls the current atlas_data.json from the Drive folder 'STORY-SHAPE ATLAS - SOURCE' (id 1yfXuxZCS7IR5u87B5_e_OR9FIdxApe0U), regenerates the HTML, verifies every hour holds to two landscape pages, renders the PDF with Chromium and the real fonts, and pushes HTML + PDF back to that folder. Read the returned summary for BUILD OK / SYNC OK or the STOP reason. It only works while Brother's PC is on.",
+      "WORKFLOW (add or change an atlas hour): (1) drive_find the folder 'STORY-SHAPE ATLAS - SOURCE' and read the Google Doc '00 - READ ME FIRST - STORY-SHAPE ATLAS' in it. (2) Download atlas_data.json, edit it in your sandbox (one JSON entry per hour; rules in ATLAS-HANDOFF.md section (g)). (3) drive_upload_chunked the edited atlas_data.json into that folder (upload_id 'atlas-json', final name 'atlas_data.json'). (4) atlas_rebuild. (5) Mirror the hour into the Doc 'THE LAST ROMAN - STORY-SHAPE ATLAS - DATA & ANALYSIS' with docs_replace_text / docs_insert_text. You do NOT need Brother for any of these steps unless atlas_rebuild returns a STOP.",
       "",
       "READ AND LOCATE BEFORE YOU EDIT (cheaper than pulling the doc through another connector): docs_get_text returns the body text and accepts offset/length to window a large document; docs_find returns every occurrence of a phrase with its character offset and surrounding context. Use docs_find to confirm an anchor is unique BEFORE replacing on it.",
       "",
@@ -1179,5 +1186,116 @@ transport.send = (message, options) => {
   }
   return _send(message, options);
 };
+
+// =========================== v1.3.0 (S#317, 2026-08-27) ====================
+// drive_upload_chunked: lets a chat sandbox push a file of ANY size into Drive even though a single
+// tool-call parameter is truncated above ~2 KB on the client side. The caller sends the file in
+// small pieces (text or base64, no blank lines); the server accumulates them in a temp file on
+// Brother's machine and, on final:true, uploads via gws (+upload, or files update when a file of
+// the same name already exists in the target folder, so re-uploads replace instead of duplicate).
+// atlas_rebuild: runs the STORY-SHAPE ATLAS build on Brother's machine (pull atlas_data.json from
+// Drive -> gen -> measure -> render -> pagemap -> push HTML/PDF/JSON back) and returns the summary.
+
+
+const UPLOAD_DIR = path.join(os.tmpdir(), "gdrive-ops-uploads");
+const ATLAS_DIR = process.env.GDRIVE_OPS_ATLAS_DIR ||
+  path.join(process.env.USERPROFILE || os.homedir(), "Documents", "last-roman", "_tools", "story-shape-atlas");
+const PYTHON_EXE = process.env.GDRIVE_OPS_PYTHON || "python";
+
+function uploadPath(id) {
+  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(id)) throw new Error("upload_id must be 1-64 chars of [A-Za-z0-9_.-]");
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  return path.join(UPLOAD_DIR, id + ".part");
+}
+
+async function findInFolder(name, parentId) {
+  const q = "name = '" + qEscape(name) + "' and '" + qEscape(parentId) + "' in parents and trashed = false";
+  const res = await gws(["drive", "files", "list", "--params", JSON.stringify({ q: q, fields: "files(id,name)", pageSize: 5 }), "--format", "json"]);
+  return res && res.files && res.files[0] ? res.files[0].id : null;
+}
+
+server.tool(
+  "drive_upload_chunked",
+  [
+    "UPLOAD A FILE OF ANY SIZE INTO DRIVE FROM A SANDBOX, IN CHUNKS. Use this when the built-in connector truncates or rejects a large inline file.",
+    "Call repeatedly with the SAME upload_id: each call appends `chunk`. Keep every chunk under ~1500 characters and free of blank lines (that is the client-side truncation limit).",
+    "encoding 'text' appends the chunk verbatim (utf-8); 'base64' decodes it (use for binary: PDF, images, or any text you want byte-exact - base64 has no blank lines by construction).",
+    "On the LAST call pass final:true with name + parent_id (+ optional mime). If a file with that name already exists in parent_id it is UPDATED in place (same file id, new revision); otherwise it is created.",
+    "Pass reset:true on the first call to discard any stale partial with the same upload_id. Returns bytes_so_far after each append and the Drive file record after the final upload.",
+  ].join(" "),
+  {
+    upload_id: z.string().describe("Your own id for this upload session, e.g. 'atlas-json-206'"),
+    chunk: z.string().optional().describe("Next piece of the file (omit on a final-only call)"),
+    encoding: z.enum(["text", "base64"]).optional().describe("How `chunk` is encoded (default text)"),
+    reset: z.boolean().optional().describe("Discard any existing partial for this upload_id before appending"),
+    final: z.boolean().optional().describe("true = this is the last chunk; upload now"),
+    name: z.string().optional().describe("Target filename in Drive (required with final)"),
+    parent_id: z.string().optional().describe("Target folder id (required with final)"),
+    mime: z.string().optional().describe("Content type override, e.g. application/json (default: detected from extension)"),
+  },
+  async ({ upload_id, chunk, encoding, reset, final, name, parent_id, mime }) => {
+    try {
+      const p = uploadPath(upload_id);
+      if (reset && fs.existsSync(p)) fs.unlinkSync(p);
+      if (chunk && chunk.length) {
+        const buf = encoding === "base64" ? Buffer.from(chunk.replace(/\s+/g, ""), "base64") : Buffer.from(chunk, "utf8");
+        fs.appendFileSync(p, buf);
+      }
+      const size = fs.existsSync(p) ? fs.statSync(p).size : 0;
+      if (!final) return ok({ upload_id: upload_id, bytes_so_far: size, status: "accumulating" });
+      if (!name || !parent_id) throw new Error("final:true requires name and parent_id");
+      if (size === 0) throw new Error("nothing accumulated for upload_id " + upload_id);
+      // gws detects the MIME type from the extension of the path it is given, so stage under the real name.
+      const stagedName = upload_id + "__" + name.replace(/[\\/:*?"<>|]/g, "_");
+      const staged = path.join(UPLOAD_DIR, stagedName);
+      fs.renameSync(p, staged);
+      let result;
+      const existing = await findInFolder(name, parent_id);
+      const args = existing
+        ? ["drive", "files", "update", "--params", JSON.stringify({ fileId: existing, fields: FILE_FIELDS }), "--upload", stagedName, "--format", "json"]
+        : ["drive", "+upload", stagedName, "--parent", parent_id, "--name", name, "--format", "json"];
+      if (mime) args.push("--upload-content-type", mime);
+      try {
+        result = await gws(args, { timeout: BIG_TIMEOUT, maxBuffer: BIG_BUFFER, cwd: UPLOAD_DIR });
+      } finally {
+        try { fs.unlinkSync(staged); } catch (e) { /* ignore */ }
+      }
+      return ok({ upload_id: upload_id, bytes: size, action: existing ? "updated" : "created", file: result });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "atlas_rebuild",
+  [
+    "REBUILD THE LAST ROMAN STORY-SHAPE ATLAS on Brother's machine and publish the outputs to the Drive folder 'STORY-SHAPE ATLAS - SOURCE'.",
+    "Pipeline: pull the CURRENT atlas_data.json from Drive -> gen_atlas.py -> measure.py (refuses if any hour would spill to a 3rd page) -> render_pdf.py -> pagemap.py (verifies 4 + 2N + 1 pages) -> sync HTML, PDF and JSON back to Drive.",
+    "Typical use: first drive_upload_chunked the edited atlas_data.json into the atlas folder, then call this. Takes ~60-90 s. Returns the build log; read the last lines for BUILD OK / SYNC OK or the STOP reason.",
+    "Only works while Brother's PC is on (the generator and Chromium live there).",
+  ].join(" "),
+  {
+    pull: z.boolean().optional().describe("Pull atlas_data.json from Drive before building (default true). false = build from whatever is on Brother's disk."),
+  },
+  async ({ pull }) => {
+    try {
+      const args = [path.join(ATLAS_DIR, "build.py"), "--sync"];
+      if (pull !== false) args.push("--pull");
+      const out = await new Promise((resolve, reject) => {
+        execFile(PYTHON_EXE, args, { cwd: ATLAS_DIR, timeout: 300000, maxBuffer: BIG_BUFFER, windowsHide: true },
+          (err, stdout, stderr) => {
+            const text = String(stdout) + (stderr ? "\n[stderr]\n" + String(stderr) : "");
+            if (err) reject(new Error("build failed (exit " + (err.code || "?") + ")\n" + text.slice(-4000)));
+            else resolve(text);
+          });
+      });
+      const lines = out.split(/\r?\n/).filter((l) => /SPILLS:|TOTAL PAGES:|BUILD OK|SYNC OK|STOP:|FAILED|pulled|updated :|uploaded:/.test(l));
+      return ok({ status: "ok", summary: lines, log_tail: out.slice(-1500) });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
 
 await server.connect(transport);

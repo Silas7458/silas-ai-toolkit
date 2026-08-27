@@ -84,17 +84,18 @@ async function call(name, args) {
 }
 
 const EXPECTED_TOOLS = [
+  "atlas_rebuild",
   "docs_create", "docs_find", "docs_get_text", "docs_insert_text",
   "docs_replace_batch", "docs_replace_text", "docs_search_content",
   "drive_create_folder", "drive_find", "drive_list_folder", "drive_move",
-  "drive_rename", "drive_restore", "drive_trash",
+  "drive_rename", "drive_restore", "drive_trash", "drive_upload_chunked",
 ].join(",");
 
 // ============================ SURFACE ======================================
 
 const tools = await client.listTools();
 const names = tools.tools.map((t) => t.name).sort();
-check("tool-surface-14", names.join(",") === EXPECTED_TOOLS, names.length + " tools");
+check("tool-surface-16", names.join(",") === EXPECTED_TOOLS, names.length + " tools");
 
 const dialects = [...new Set(tools.tools.map((t) => (t.inputSchema && t.inputSchema.$schema) || "(none)"))];
 check("schema-dialect-2020-12", dialects.length === 1 && dialects[0] === "https://json-schema.org/draft/2020-12/schema", dialects.join("|"));
@@ -134,7 +135,7 @@ check("restore-A", !!(rs.data && rs.data.trashed === false), JSON.stringify(rs.d
 const bad = await call("drive_move", { file_id: "nonexistent-id-12345", dest_folder_id: bId });
 check("error-path-isError", !!(bad.res.isError && bad.text.indexOf("ERROR") === 0), bad.text.slice(0, 60));
 const alive = await client.listTools();
-check("server-survives-error", alive.tools.length === 14);
+check("server-survives-error", alive.tools.length === 16);
 
 // ============================ FEATURE 1: docs_create =======================
 
