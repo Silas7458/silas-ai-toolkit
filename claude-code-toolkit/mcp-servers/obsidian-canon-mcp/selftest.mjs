@@ -132,6 +132,15 @@ if (semInfo.ready) {
   const t0 = Date.now();
   const hy = await call("canon_semantic", { query: "who carries the golden-hilted sword and where did it come from", limit: 5 });
   check("canon_semantic hybrid (vectors ready)", !hy.error && hy.total > 0 && hy.results.some((r) => /Commander|AMBROSIUS|00T|SPATHA/i.test(r.file + " " + (r.snippet || "") + " " + (r.title || ""))), (hy.error ? hy.error.slice(0, 120) : hy.total + " hits in " + ((Date.now() - t0) / 1000).toFixed(1) + "s; top=" + (hy.results[0] && hy.results[0].file.slice(0, 70))));
+  const t2 = Date.now();
+  const hyp = await call("canon_semantic", {
+    query: "scenes where a rider disobeys or defies an order during the ride",
+    hypothesis: "A benched rider is left behind when the Dragons ride out; he saddles a horse and rides after them alone against orders, then saves the retreat with arrows from a ridge.",
+    limit: 5,
+  });
+  const hypTop = (hyp.results || []).slice(0, 3).map((r) => r.file).join(" | ");
+  check("canon_semantic with hypothesis ranks the 109 scene", !hyp.error && /MARDIN|EPISODE MAP|MASTER EPISODE/i.test(hypTop), (hyp.error ? hyp.error.slice(0, 120) : hyp.total + " hits in " + ((Date.now() - t2) / 1000).toFixed(1) + "s; top3=" + hypTop.slice(0, 160)));
+  check("canon_semantic drops raw transcripts by default", !hyp.error && !(hyp.results || []).some((r) => /Transcript-/i.test(r.file)) && hyp.transcripts_filtered === true, "");
   const t1 = Date.now();
   const vec = await call("canon_semantic", { query: "a rider disobeys an order during the ride", mode: "vector", limit: 5 });
   check("canon_semantic vector mode", !vec.error && vec.total > 0, (vec.error ? vec.error.slice(0, 120) : vec.total + " hits in " + ((Date.now() - t1) / 1000).toFixed(1) + "s; top=" + (vec.results[0] && vec.results[0].file.slice(0, 70))));

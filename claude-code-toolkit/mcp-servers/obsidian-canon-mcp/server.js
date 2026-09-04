@@ -1244,28 +1244,32 @@ server.tool(
     mode: z.enum(["hybrid", "vector", "keyword"]).optional().describe("hybrid (default: keywords + meaning fused) | vector (meaning only) | keyword (BM25 only, instant, exact terms)"),
     limit: z.number().optional().describe("Max results (default 10, max 40)"),
     keywords: z.string().optional().describe("hybrid only: the exact-term half of the query (names, objects). Default: the query itself"),
+    hypothesis: z.string().optional().describe("STRONGLY RECOMMENDED for abstract questions: 1-2 sentences guessing what the matching passage would SAY (who, what happens, where). Measured on this corpus: 'a rider defies an order' ranked a false positive first; adding a hypothesis put the right scene first. You do not need to be right, just plausible."),
+    include_transcripts: z.boolean().optional().describe("Default false: raw dictation transcripts (THE-LAST-ROMAN-Transcript-*) are dropped from results because their conversational text dominates meaning search and they are superseded by the Masters. true = keep them"),
     expand: z.boolean().optional().describe("hybrid only: let QMD's local LLM rewrite the question into several sub-queries (default false: adds ~15-30 s on this machine)"),
     rerank: z.boolean().optional().describe("hybrid only: LLM reranking of the top candidates (default false: adds ~40 s+ on this machine)"),
     live_only: z.boolean().optional().describe("Default true: drop archives, session logs, historical, Brother's notes"),
     full: z.boolean().optional().describe("true = return the full matching document text instead of a snippet (large)"),
   },
-  async ({ query, mode, limit, keywords, expand, rerank, live_only, full }) => {
+  async ({ query, mode, limit, keywords, hypothesis, include_transcripts, expand, rerank, live_only, full }) => {
     try {
       const n = Math.min(40, Math.max(1, limit || 10));
       const cmd = mode === "vector" ? "vsearch" : mode === "keyword" ? "search" : "query";
-      const fetchN = live_only === false ? n : n * 2;
+      const fetchN = live_only === false && include_transcripts ? n : n * 3;
       const typed = /^(intent|lex|vec|hyde):/m.test(query);
-      // Default hybrid = a typed lex+vec document: skips the expansion model, keeps meaning + exact terms.
+      const one = (s) => String(s).replace(/\r?\n/g, " ").trim();
+      // Default hybrid = a typed lex+vec(+hyde) document: skips the expansion model, keeps meaning + exact terms.
       const queryText = cmd === "query" && !typed && !expand
-        ? "lex: " + (keywords || query).replace(/\r?\n/g, " ") + "\nvec: " + query.replace(/\r?\n/g, " ")
+        ? "lex: " + one(keywords || query) + "\nvec: " + one(query) + (hypothesis ? "\nhyde: " + one(hypothesis) : "")
         : query;
+      const TRANSCRIPT_RE = /(^|\/)THE-LAST-ROMAN-Transcript-/i;
       let rows;
       if (QMD_WARM && cmd !== "search") {
         const searches = cmd === "vsearch"
           ? [{ type: "vec", query }]
           : typed
             ? query.split(/\r?\n/).map((l) => /^(lex|vec|hyde):\s*(.*)$/.exec(l)).filter(Boolean).map((m) => ({ type: m[1], query: m[2] }))
-            : [{ type: "lex", query: (keywords || query).replace(/\r?\n/g, " ") }, { type: "vec", query: query.replace(/\r?\n/g, " ") }];
+            : [{ type: "lex", query: one(keywords || query) }, { type: "vec", query: one(query) }].concat(hypothesis ? [{ type: "hyde", query: one(hypothesis) }] : []);
         const data = await qmdQueryWarm(searches, { limit: fetchN, rerank: !!rerank, timeout: 240000 });
         rows = Array.isArray(data) ? data : data.results || data.items || data.hits || [];
       } else {
@@ -1292,6 +1296,7 @@ server.tool(
         const rec = relPath ? ix.byPath.get(relPath) || ix.byPathFold.get(fold(relPath)) : null;
         const live = rec ? rec.live : !NON_LIVE_RE.test(relPath || "");
         if (live_only !== false && !live) continue;
+        if (!include_transcripts && TRANSCRIPT_RE.test(relPath || abs)) continue;
         results.push({
           file: relPath || abs,
           live,
@@ -1311,7 +1316,8 @@ server.tool(
           if (!st.vectors_embedded && cmd !== "search") note = "No vectors embedded yet - run canon_embed (or wait for the post-pull re-embed). keyword mode works without embeddings.";
         } catch (e) {}
       }
-      return ok({ query, mode: mode || "hybrid", engine: (QMD_WARM && cmd !== "search" ? "qmd warm http " : "qmd ") + cmd, expand: !!expand, rerank: !!rerank, live_only: live_only !== false, total: results.length, results, note });
+      if (!hypothesis && cmd === "query" && !typed && !expand) note = (note ? note + " " : "") + "Tip: for abstract questions pass hypothesis= (1-2 sentences guessing what the passage says) - it measurably improves ranking on this corpus.";
+      return ok({ query, mode: mode || "hybrid", engine: (QMD_WARM && cmd !== "search" ? "qmd warm http " : "qmd ") + cmd, hypothesis: hypothesis || null, transcripts_filtered: !include_transcripts, expand: !!expand, rerank: !!rerank, live_only: live_only !== false, total: results.length, results, note });
     } catch (e) {
       return fail(e);
     }
