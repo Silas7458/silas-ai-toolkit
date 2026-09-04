@@ -1135,6 +1135,429 @@ server.tool(
   }
 );
 
+// ---------------------------------------------------------------------------
+// RULINGS INDEX - every R-number in the 00-series, parsed from the author's own heading form
+// ("R-110 - TITLE. [A - 16 Aug]"), with the supersession chain and the open items.
+// ---------------------------------------------------------------------------
+
+const MONTHS = { JANUARY: 1, FEBRUARY: 2, MARCH: 3, APRIL: 4, MAY: 5, JUNE: 6, JULY: 7, AUGUST: 8, SEPTEMBER: 9, OCTOBER: 10, NOVEMBER: 11, DECEMBER: 12 };
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+const DATE_RANGE_RE = new RegExp("(\\d{1,2})(?:\\s*" + DASH + "\\s*\\d{1,2})?\\s+([A-Z]+)\\s+(\\d{4})", "i");
+function parseDocDate(name) {
+  let m = /(\d{4})-(\d{2})-(\d{2})/.exec(name);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  m = DATE_RANGE_RE.exec(name);
+  if (m && MONTHS[m[2].toUpperCase()]) return m[3] + "-" + pad2(MONTHS[m[2].toUpperCase()]) + "-" + pad2(m[1]);
+  return null;
+}
+const RULING_HEAD_RE = new RegExp("^\\s*R-(\\d+)\\s*((?:REFINED|AMENDED|RESTATED|ADDENDUM|CLARIFIED)[A-Z]*)?\\s*(?:" + DASH + "|\\.|:)?\\s*(.*)$");
+const RULING_END_RE = /^\s*(END OF 00|RIPPLE LIST|FOLDED \d|OPEN ITEMS?\b|OPEN QUESTIONS?\b)/i;
+const REL_WORD = "(supersed\\w*|refine[sd]?|replace[sd]?|restate[sd]?|reopen\\w*|re-?open\\w*|close[sd]?|carr(?:ied|ies)|amend\\w*|extend\\w*|confirm\\w*|reassert\\w*|corrected|dead|retired|moot|withdrawn|overrid\\w*)";
+const REL_FWD = new RegExp("\\b" + REL_WORD + "\\b[^.;\\n]{0,90}?\\bR-(\\d+)\\b", "gi");
+const REL_BACK = new RegExp("\\bR-(\\d+)\\b[^.;\\n]{0,90}?\\b" + REL_WORD + "\\b", "gi");
+const OPEN_CODE_RE = /\b(S[1-4]-O-\d+|O-\d+)\b/g;
+
+let RULINGS = null;
+let RULINGS_AT = 0;
+
+function rulingsIndex() {
+  const ix = index();
+  if (RULINGS && RULINGS_AT === CACHE_AT) return RULINGS;
+  const docs = ix.records.filter((r) => r.ext === ".txt" && r.folder === "canon" && /^00[A-Z]/.test(r.base) && r.live);
+  const entries = [];
+  const open = [];
+  for (const r of docs) {
+    let text;
+    try {
+      text = readText(safeAbs(r.path));
+    } catch (e) {
+      continue;
+    }
+    const lines = text.split(/\r?\n/);
+    const code = (/^(00[A-Z](?:-ADD)?)/.exec(r.base) || [null, "00?"])[1];
+    const date = parseDocDate(r.drive_name || r.base) || parseDocDate(lines[0] || "") || null;
+    const banner = lines.slice(0, 8).map((l) => (/\[SUPERSEDED[^\]]*\]/i.exec(l) || [null])[0]).filter(Boolean)[0] || null;
+    // rulings
+    for (let i = 0; i < lines.length; i++) {
+      const h = RULING_HEAD_RE.exec(lines[i]);
+      if (!h) continue;
+      let j = i + 1;
+      let blanks = 0;
+      while (j < lines.length && j - i < 120) {
+        if (RULING_HEAD_RE.test(lines[j]) || RULING_END_RE.test(lines[j])) break;
+        if (!lines[j].trim()) {
+          blanks++;
+          if (blanks >= 2) break;
+        } else blanks = 0;
+        j++;
+      }
+      const body = lines.slice(i, j).join("\n").trim();
+      const mentions = new Set();
+      let m;
+      const mentionRe = /\bR-(\d+)\b/g;
+      while ((m = mentionRe.exec(body))) if (+m[1] !== +h[1]) mentions.add("R-" + m[1]);
+      const relations = [];
+      REL_FWD.lastIndex = 0;
+      while ((m = REL_FWD.exec(body))) if (+m[2] !== +h[1]) relations.push({ word: m[1].toLowerCase(), target: "R-" + m[2] });
+      REL_BACK.lastIndex = 0;
+      while ((m = REL_BACK.exec(body))) if (+m[1] !== +h[1]) relations.push({ word: m[2].toLowerCase(), target: "R-" + m[1] });
+      const inlineNote = (/\[(SUPERSEDED|ANSWERED|CLOSED|RETIRED|DEAD)[^\]]{0,800}\]/i.exec(body) || [null])[0];
+      if (inlineNote) {
+        // a bracketed supersession note names what replaced it: that is a relation too
+        const noteRe = /\bR-(\d+)\b/g;
+        let nm;
+        while ((nm = noteRe.exec(inlineNote))) if (+nm[1] !== +h[1]) relations.push({ word: "superseded-by (note)", target: "R-" + nm[1] });
+      }
+      entries.push({
+        id: "R-" + h[1],
+        num: +h[1],
+        variant: h[2] ? h[2].trim() : null,
+        title: (h[3] || "").replace(/\s+/g, " ").trim().slice(0, 220),
+        doc: r.path,
+        doc_code: code,
+        drive_id: r.drive_id,
+        date,
+        line: i + 1,
+        text: body,
+        mentions: [...mentions],
+        relations,
+        inline_note: inlineNote,
+        doc_banner: banner,
+      });
+      i = j - 1;
+    }
+    // open items: numbered lines under an OPEN ITEMS / OPEN QUESTIONS heading, plus any [?] line, plus O-codes
+    let inOpen = false;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s*(OPEN ITEMS?|OPEN QUESTIONS?)\b/i.test(l)) {
+        inOpen = true;
+        continue;
+      }
+      if (inOpen && (RULING_HEAD_RE.test(l) || /^\s*(RIPPLE LIST|END OF 00|FOLDED)/i.test(l))) inOpen = false;
+      const numbered = inOpen && /^\s*\d+\.\s+\S/.test(l);
+      const flagged = /\[\?\]/.test(l);
+      const codes = [];
+      let m;
+      OPEN_CODE_RE.lastIndex = 0;
+      while ((m = OPEN_CODE_RE.exec(l))) codes.push(m[1]);
+      if (!numbered && !flagged && !codes.length) continue;
+      if (!numbered && !flagged && codes.length && !/\b(open|pending|need|unruled|\[\?\])/i.test(l)) continue; // a code merely cited
+      const answered = /\[(ANSWERED|CLOSED|RESOLVED)\b|\bCLOSED\b\s*[\[(:]|\bANSWERED\b/i.test(l);
+      open.push({ doc: r.path, doc_code: code, date, line: i + 1, codes, answered, text: l.trim().slice(0, 500) });
+    }
+  }
+  const byDate = (a, b) => String(b.date || "").localeCompare(String(a.date || "")) || b.doc_code.localeCompare(a.doc_code) || b.line - a.line;
+  entries.sort(byDate);
+  open.sort(byDate);
+  const byId = new Map();
+  for (const e of entries) {
+    if (!byId.has(e.id)) byId.set(e.id, []);
+    byId.get(e.id).push(e);
+  }
+  RULINGS = { entries, byId, open, docs: docs.map((d) => ({ path: d.path, date: parseDocDate(d.drive_name || d.base) })) };
+  RULINGS_AT = CACHE_AT;
+  return RULINGS;
+}
+
+function normalizeRulingId(s) {
+  const m = /(\d+)/.exec(String(s));
+  if (!m) throw new Error("ruling id must contain a number, e.g. R-68");
+  return "R-" + +m[1];
+}
+
+function rulingView(e, withText) {
+  return {
+    id: e.id + (e.variant ? " " + e.variant : ""),
+    title: e.title,
+    doc: e.doc,
+    doc_code: e.doc_code,
+    date: e.date,
+    line: e.line,
+    drive_id: e.drive_id,
+    inline_note: e.inline_note,
+    doc_banner: e.doc_banner,
+    relations: e.relations,
+    mentions: e.mentions,
+    text: withText ? e.text : undefined,
+  };
+}
+
+server.tool(
+  "canon_ruling",
+  "One ruling by number (R-68, '68'): its text, where it lives (doc, line, date), every variant (e.g. R-95 and R-95 REFINED), what it touches, and the CHAIN - every later ruling that supersedes / refines / closes / mentions it, newest first. Read this before relying on any ruling: the 00-series is newest-wins.",
+  { id: z.string().describe("R-68, 'R 68', '68'") },
+  async ({ id }) => {
+    try {
+      const rid = normalizeRulingId(id);
+      const rx = rulingsIndex();
+      const entries = rx.byId.get(rid) || [];
+      if (!entries.length) throw new Error(rid + " not found as a heading in any live 00-series doc (" + rx.entries.length + " rulings indexed). Try canon_rulings query=...");
+      const later = [];
+      for (const e of rx.entries) {
+        if (e.id === rid) continue;
+        const rel = e.relations.filter((x) => x.target === rid).map((x) => x.word);
+        if (rel.length || e.mentions.includes(rid)) later.push(Object.assign({ how: rel.length ? rel : ["mentions"] }, rulingView(e, false)));
+      }
+      const newest = entries[0];
+      const superseding = later.filter((x) => x.how.some((w) => /supersed|replace|retired|dead|moot|overrid|corrected|withdrawn/.test(w)) && String(x.date || "") >= String(newest.date || ""));
+      const byNote = [...new Set(entries.flatMap((e) => e.relations.filter((x) => /superseded-by/.test(x.word)).map((x) => x.target)))];
+      const status = byNote.length
+        ? "SUPERSEDED by " + byNote.join(", ") + " (per the note on the ruling): " + String(newest.inline_note || "").slice(0, 240)
+        : superseding.length
+          ? "SUPERSEDED or amended by " + superseding.map((x) => x.id).join(", ") + " (see chain)"
+          : newest.inline_note || newest.doc_banner
+            ? "carries a note: " + String(newest.inline_note || newest.doc_banner).slice(0, 240)
+            : "no later ruling supersedes it by name";
+      return ok({
+        id: rid,
+        status,
+        superseded_by: byNote.concat(superseding.map((x) => x.id.split(" ")[0])).filter((v, i, a) => a.indexOf(v) === i),
+        entries: entries.map((e) => rulingView(e, true)),
+        chain_later: later,
+        touches: newest.relations,
+        note: "Newest-wins: if chain_later names a superseding ruling, canon_ruling that id next.",
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "canon_rulings",
+  "Search the rulings index: every R-number in the 00-series, newest first. Filters: query (text in title/body), episode (108 / S2E07: rulings whose text names it), entity (a name), since (YYYY-MM-DD). open_only=true lists the OPEN ITEMS / [?] questions instead, with answered/unanswered. Coverage is reported so a ruling written outside the R-nnn heading form is never silently missed.",
+  {
+    query: z.string().optional(),
+    episode: z.string().optional().describe("108, S1E08 or 1x08"),
+    entity: z.string().optional().describe("Character / object name, matched case-insensitively in the ruling text"),
+    since: z.string().optional().describe("YYYY-MM-DD"),
+    open_only: z.boolean().optional(),
+    with_text: z.boolean().optional().describe("Include the full ruling text (default false: heading + where)"),
+    limit: z.number().optional().describe("Default 40"),
+  },
+  async ({ query, episode, entity, since, open_only, with_text, limit }) => {
+    try {
+      const rx = rulingsIndex();
+      const lim = limit || 40;
+      if (open_only) {
+        let items = rx.open;
+        if (query) items = items.filter((o) => fold(o.text).includes(fold(query)));
+        if (since) items = items.filter((o) => String(o.date || "") >= since);
+        return ok({ total_open_items: items.length, unanswered: items.filter((o) => !o.answered).length, items: items.slice(0, lim) });
+      }
+      let list = rx.entries;
+      if (query) list = list.filter((e) => fold(e.title + " " + e.text).includes(fold(query)));
+      if (entity) list = list.filter((e) => fold(e.text).includes(fold(entity)));
+      if (episode) {
+        const epi = normalizeEpisode(episode);
+        const re = new RegExp("(^|[^0-9])" + epi.number + "([^0-9]|$)|\\b" + epi.code + "\\b|\\bE" + String(epi.number % 100).padStart(2, "0") + "\\b");
+        list = list.filter((e) => re.test(e.text));
+      }
+      if (since) list = list.filter((e) => String(e.date || "") >= since);
+      return ok({
+        coverage: { rulings_indexed: rx.entries.length, distinct_ids: rx.byId.size, docs: rx.docs.length, open_items: rx.open.length },
+        total: list.length,
+        rulings: list.slice(0, lim).map((e) => rulingView(e, !!with_text)),
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// CONTRADICTION FINDER - for one entity, every concrete claim the live corpus makes, grouped by
+// fact, conflicting values side by side. CANDIDATES for the author to adjudicate, never verdicts.
+// This is the mechanical form of the Hengist sweep (398 lines read by hand on 4 Sept 2026).
+// ---------------------------------------------------------------------------
+
+const COLOR_WORDS = "gold|golden|purple|silver|orange|yellow|black|red|blue|green|white|brown|grey|gray|bay|chestnut";
+const SEASON_SPAN = "S[1-4](?:" + DASH + "S[1-4])?";
+const CLAIM_RULES = [
+  { fact: "born (year)", re: /\bborn\s+(?:c\.?\s*|~\s*|about\s*|circa\s*)?(\d{3})\b/gi, value: (m) => m[1] },
+  { fact: "age at a point", re: /\b(\d{1,2})\s+(?:at|by)\s+(?:the\s+)?((?:S?[1-4]E\d{2}|E\d{1,2}|\d{3})\b|Badon|the supper|the pilot|the catastrophe|E1\b|101\b)/gi, value: (m) => m[1] + " at " + m[2] },
+  { fact: "age stated", re: /\b(?:aged?|is|now)\s+(\d{2})\b(?=[\s,.;)]|$)(?![\d-])/gi, value: (m) => m[1], guard: (s) => /\b(age|aged|years? old|old)\b/i.test(s) },
+  { fact: "dies / falls (episode)", re: /\b(?:dies|died|death|falls|fell|killed|is killed|slain)\b[^.;]{0,50}?\b(?:at|in|by)?\s*((?:S[1-4]E\d{2})|[1-4]\d{2})\b/gi, value: (m) => m[1] },
+  { fact: "killed by (who)", re: /\b(?:killed by|dies at|slain by)\s+([A-Z][a-z]+)(?:'s hand)?\b/g, value: (m) => m[1] },
+  { fact: "kills (who)", re: /\b([A-Z][A-Za-z]+)\s+kills\s+([A-Z][A-Za-z]+)\b/g, value: (m) => m[1] + " kills " + m[2] },
+  { fact: "survives", re: new RegExp("\\bsurviv(?:es|ed|al)\\b[^.;]{0,40}?\\b(" + SEASON_SPAN + "|the series|Season (?:One|Two|Three)|\\d{3})\\b", "gi"), value: (m) => m[1] },
+  { fact: "sword / spatha", re: new RegExp("\\b(spatha|sword|blade)\\b[^.;]{0,70}?\\b(lost|recovered|never (?:seen|recovered|shown)|in the cairn|cairn|kept|carries|redwood|bronze|brass|gold-hilted|golden|standard|Commander's Sword)\\b", "gi"), value: (m) => m[2].toLowerCase() },
+  { fact: "seat color / draco color", re: new RegExp("\\b(" + COLOR_WORDS + ")\\b[^.;]{0,40}?\\b(draco|windsock|pauldron|seat|colou?r)\\b", "gi"), value: (m) => m[1].toLowerCase() },
+  { fact: "horse", re: new RegExp("\\b(" + COLOR_WORDS + "|arabian|stallion|mare|gelding)\\b[^.;]{0,30}?\\b(horse|mare|stallion|arabian|gelding)\\b", "gi"), value: (m) => (m[1] + " " + m[2]).toLowerCase() },
+  { fact: "column / slot", re: /\b(?:slot|position|rides(?: at)?|takes)\s*\(?([a-h]|X)\)?\b(?=[\s,.;)])/g, value: (m) => m[1] },
+  { fact: "seat number", re: /\bSeat\s+(\d{1,2})\b/gi, value: (m) => "Seat " + m[1] },
+  { fact: "rank on the ladder", re: /\B#(\d)\b/g, value: (m) => "#" + m[1], guard: (s) => /\b(ladder|antagonist|bench|rank)\b/i.test(s) },
+  { fact: "location / seat of power", re: /\b(?:in|at|from|of)\s+(Kent|Glevum|Londinium|London|Corinium|Aquae Sulis|Afallon|Badon|Taron|Armenia|Persia|the Sanctuary|the Castra)\b/g, value: (m) => m[1], profile: true },
+  // years are keyed by the event word next to them ("catastrophe 460", "Badon 490", "closed 435"), so different
+  // events never collide as one fact; a bare year with no event word is profile-only
+  { fact: "year", re: /\b(catastrophe|Badon|closed|closure|born|Aylesford|Crecganford|Deorham|Dyrham|Aesc|Kent|A\.?D\.?)\b[^.;]{0,25}?\b(4[0-9]{2}|5[0-7][0-9])\b|\b(4[0-9]{2}|5[0-7][0-9])\b[^.;]{0,12}?\b(catastrophe|Badon|closure|Aylesford|Crecganford)\b/gi, value: (m) => { const kw = (m[1] || m[4]).toLowerCase(); return (/^a\.?d\.?$/.test(kw) ? "a.d." : kw) + " " + (m[2] || m[3]); }, keyed: true },
+];
+// A claim is attributed to the entity only when the entity's name sits within this many characters BEFORE the
+// match (or the match is the sentence's first clause): stops "Hengist's field warlord Wipped dies at 110" from
+// being filed under Hengist.
+const PROXIMITY = 90;
+// tighter windows for facts that travel in lists ("Felix silver, Ambrosius purple, Gallus green")
+const NEAR_BY_FACT = { "seat color / draco color": 35, "column / slot": 35, horse: 45, "seat number": 35 };
+function nearEntity(sentence, matchIndex, nameRe, fact) {
+  const span = NEAR_BY_FACT[fact] || PROXIMITY;
+  const before = sentence.slice(Math.max(0, matchIndex - span), matchIndex);
+  if (nameRe.test(fold(before))) return true;
+  // name after the match inside a short clause ("dies at 110, Hengist ...") - allow 40 chars
+  const after = sentence.slice(matchIndex, matchIndex + 40);
+  return nameRe.test(fold(after)) && !/\b(and|with|by|under)\b/i.test(after.slice(0, 12));
+}
+
+const SENTENCE_SPLIT_RE = new RegExp("(?<=[.!?])\\s+(?=[A-Z\"\\u201c(\\[])");
+function splitSentences(line) {
+  return line.split(SENTENCE_SPLIT_RE).map((s) => s.trim()).filter((s) => s.length > 15);
+}
+
+server.tool(
+  "canon_claims",
+  "CONTRADICTION FINDER for one entity (character, object, place). Pulls every live sentence that names it, extracts concrete claims (birth year, ages, death episode, killer, survival, sword, colors, horse, slot, seat, ladder rank, places, years), groups them by fact, and puts CONFLICTING VALUES side by side with document + line + the newest ruling that names the entity and the value. Also lists single-source claims (where stragglers hide). Candidates for the author to adjudicate - never verdicts. Aliases widen the net (e.g. Ambrosius + Uthr).",
+  {
+    entity: z.string().describe("e.g. 'Valerius', 'Hengist', 'Commander's Sword'"),
+    aliases: z.array(z.string()).optional().describe("Other names for the same entity"),
+    live_only: z.boolean().optional().describe("Default true"),
+    include_rulings: z.boolean().optional().describe("Default true: include the 00-series docs as sources (their dead-material lines will show as minority values - that is expected)"),
+    max_examples: z.number().optional().describe("Sentences shown per value (default 4)"),
+  },
+  async ({ entity, aliases, live_only, include_rulings, max_examples }) => {
+    try {
+      const names = [entity].concat(aliases || []).map(fold).filter(Boolean);
+      const nameRe = new RegExp("\\b(" + names.map(esc).join("|") + ")", "i");
+      const files = scopeFiles({ scope: "canonical", live_only, ext: "txt" }).filter((r) => include_rulings !== false || !/^canon\/00[A-Z]/.test(r.path));
+      const facts = new Map(); // fact -> Map(value -> {count, docs:Set, examples:[]})
+      let sentencesScanned = 0;
+      const perDoc = new Map();
+      for (const r of files) {
+        let text;
+        try {
+          text = readText(safeAbs(r.path));
+        } catch (e) {
+          continue;
+        }
+        if (!nameRe.test(fold(text))) continue;
+        const lines = text.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+          if (!nameRe.test(fold(lines[i]))) continue;
+          for (const s of splitSentences(lines[i])) {
+            if (!nameRe.test(fold(s))) continue;
+            sentencesScanned++;
+            perDoc.set(r.path, (perDoc.get(r.path) || 0) + 1);
+            for (const rule of CLAIM_RULES) {
+              if (rule.guard && !rule.guard(s)) continue;
+              rule.re.lastIndex = 0;
+              let m;
+              while ((m = rule.re.exec(s))) {
+                const v = rule.value(m);
+                if (!v) continue;
+                if (!rule.profile && !nearEntity(s, m.index, nameRe, rule.fact)) continue;
+                if (rule.fact === "kills (who)" && !nameRe.test(fold(v))) continue;
+                if (!facts.has(rule.fact)) facts.set(rule.fact, new Map());
+                const fm = facts.get(rule.fact);
+                if (!fm.has(v)) fm.set(v, { count: 0, docs: new Set(), examples: [] });
+                const slot = fm.get(v);
+                slot.count++;
+                slot.docs.add(r.path);
+                if (slot.examples.length < (max_examples || 4)) slot.examples.push({ doc: r.path, line: i + 1, sentence: s.slice(0, 300) });
+              }
+            }
+          }
+        }
+      }
+      const rx = rulingsIndex();
+      const newestRulingFor = (value) => {
+        const e = rx.entries.find((x) => nameRe.test(fold(x.text)) && fold(x.text).includes(fold(String(value))));
+        return e ? { id: e.id + (e.variant ? " " + e.variant : ""), date: e.date, doc_code: e.doc_code, line: e.line } : null;
+      };
+      const PROFILE_FACTS = new Set(CLAIM_RULES.filter((x) => x.profile).map((x) => x.fact));
+      const conflicts = [];
+      const profile = [];
+      const single = [];
+      for (const [fact, fm] of facts) {
+        const values = [...fm.entries()].map(([value, d]) => ({ value, count: d.count, docs: d.docs.size, newest_ruling: newestRulingFor(value), examples: d.examples })).sort((a, b) => b.count - a.count);
+        if (PROFILE_FACTS.has(fact)) {
+          profile.push({ fact, values: values.map((v) => ({ value: v.value, count: v.count, docs: v.docs })) });
+          continue;
+        }
+        if (values.length > 1) conflicts.push({ fact, values, minority: values.slice(1).map((v) => v.value) });
+        for (const v of values) if (v.docs === 1) single.push({ fact, value: v.value, doc: [...fm.get(v.value).docs][0], example: v.examples[0] });
+      }
+      conflicts.sort((a, b) => b.values.length - a.values.length);
+      return ok({
+        entity,
+        aliases: aliases || [],
+        sentences_scanned: sentencesScanned,
+        docs_with_mentions: perDoc.size,
+        conflicting_facts: conflicts.length,
+        conflicts,
+        profile,
+        single_source_claims: single.slice(0, 60),
+        newest_rulings_naming_entity: rx.entries.filter((e) => nameRe.test(fold(e.text))).slice(0, 12).map((e) => rulingView(e, false)),
+        note: "Heuristic extraction: values are grouped by regex, so a minority value can be a dead-material record ('DEAD: ...', 'was ...') rather than a live contradiction. Read the examples; the newest ruling column says what governs.",
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// FOLD - the "fold this into the corpus" trigger. Ordinary gdrive-ops edits do NOT pull;
+// the fold does: pull + re-embed + the list of Docs that changed.
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "canon_fold",
+  "THE FOLD. Call this once when Silas says 'fold this into the corpus' (after the Drive edits are made with gdrive-ops): pulls Drive -> mirror -> GitHub, re-embeds what changed, and reports exactly which Docs changed. Do NOT call it after every edit. Background: returns when finished or after wait_seconds; if status is 'running', call again with status=true.",
+  {
+    status: z.boolean().optional().describe("true = report the current/last fold, start nothing"),
+    wait_seconds: z.number().optional().describe("Default 50, max 55"),
+  },
+  async ({ status, wait_seconds }) => {
+    try {
+      const wait = Math.min(55, Math.max(0, wait_seconds == null ? 50 : wait_seconds)) * 1000;
+      let job = PULL_JOB;
+      if (status) {
+        if (!job) return ok({ status: "idle", note: "no fold has run in this session" });
+      } else {
+        if (job && job.status === "running") return ok(Object.assign({ note: "a pull is already running; not starting another" }, jobView(job)));
+        job = startPull(false, false);
+      }
+      if (job.status === "running" && wait > 0) await Promise.race([job.promise, new Promise((res) => setTimeout(res, wait))]);
+      const view = jobView(job);
+      if (job.status === "done") {
+        let changed = [];
+        let commit = null;
+        if (!/nothing to commit/i.test(job.output)) {
+          try {
+            commit = (await git(["log", "-1", "--format=%h %s"])).trim();
+            const diff = await git(["diff", "--name-status", "HEAD~1", "HEAD"]);
+            const ix = index();
+            changed = diff.split(/\r?\n/).filter(Boolean).map((l) => {
+              const parts = l.split("\t");
+              const st = parts[0];
+              const p = parts[parts.length - 1];
+              const rec = ix.byPath.get(p);
+              return { status: st, path: p, drive_name: rec ? rec.drive_name : null, drive_id: rec ? rec.drive_id : null };
+            }).filter((c) => /\.txt$/.test(c.path) || !/\.md$/.test(c.path));
+          } catch (e) {
+            changed = [{ error: String(e.message || e).slice(0, 200) }];
+          }
+        }
+        return ok(Object.assign(view, { fold: "complete", commit, changed_docs: changed, docs_changed: changed.length, next: "The mirror is current. Any open canon_read pages from before the fold are stale." }));
+      }
+      return ok(Object.assign(view, { fold: job.status, next: job.status === "running" ? "call canon_fold status=true" : "see log_tail" }));
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
 server.tool(
   "canon_lookup",
   "Resolve a Drive id, Drive name, Drive path, or local path to the full manifest entry (id, name, Drive path, link, mime, modified, live, local files). Use the id with gdrive-ops to edit the source on Drive.",
@@ -1363,7 +1786,7 @@ function startPull(dry_run, full) {
       job.status = "done";
       job.exit_code = 0;
       // keep the semantic index in step with the mirror (background; reported via canon_embed status=true)
-      if (!dry_run && qmdBin()) job.embed = startEmbed(false);
+      if (!dry_run && qmdBin() && !/nothing to commit/i.test(job.output)) job.embed = startEmbed(false);
     })
     .catch((e) => {
       job.output = String(e.message || e);

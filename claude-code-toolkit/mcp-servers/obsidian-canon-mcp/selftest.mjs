@@ -38,9 +38,37 @@ const expected = [
   "canon_info", "canon_list", "canon_read", "canon_grep", "canon_topic", "canon_lookup", "canon_outline",
   "canon_graph", "canon_history", "canon_diff", "canon_images", "canon_pull", "canon_semantic", "canon_embed",
   "canon_section", "canon_outline_text", "canon_episode",
+  "canon_ruling", "canon_rulings", "canon_claims", "canon_fold",
   "obsidian_search", "obsidian_cli",
 ];
-check("all 19 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+check("all 23 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+
+// rulings index
+const r68 = await call("canon_ruling", { id: "R-68" });
+check("canon_ruling R-68 resolves + superseded by R-95/R-115 via its note", !r68.error && r68.entries.length === 1 && /00H/.test(r68.entries[0].doc_code) && r68.superseded_by.includes("R-95") && r68.superseded_by.includes("R-115"), r68.error ? r68.error.slice(0, 120) : r68.status.slice(0, 100));
+const r95 = await call("canon_ruling", { id: "95" });
+check("canon_ruling 95 returns both variants", !r95.error && r95.entries.length === 2 && r95.entries.some((e) => /REFINED/.test(e.id)), r95.error ? r95.error.slice(0, 120) : r95.entries.map((e) => e.id).join(" / "));
+const cov = await call("canon_rulings", { limit: 1 });
+check("canon_rulings coverage (>=150 rulings, >=20 docs)", !cov.error && cov.coverage.rulings_indexed >= 150 && cov.coverage.docs >= 20, JSON.stringify(cov.coverage || cov.error));
+const rul207 = await call("canon_rulings", { episode: "207", limit: 30 });
+const ids207 = (rul207.rulings || []).map((r) => r.id.split(" ")[0]);
+check("canon_rulings episode=207 names R-11, R-12, R-66, R-110", ["R-11", "R-12", "R-66", "R-110"].every((x) => ids207.includes(x)), ids207.join(" "));
+const openItems = await call("canon_rulings", { open_only: true, limit: 200 });
+check("canon_rulings open_only lists items + marks the 00J S1E10 item answered", !openItems.error && openItems.total_open_items >= 20 && openItems.items.some((o) => /00J/.test(o.doc_code) && /S1E10 KILL/.test(o.text) && o.answered === true), openItems.error ? openItems.error.slice(0, 120) : openItems.total_open_items + " items, " + openItems.unanswered + " unanswered");
+
+// contradiction finder - known cases
+const heng = await call("canon_claims", { entity: "Hengist", aliases: ["Hengest"] });
+const hengDies = (heng.conflicts || []).find((c) => /dies/.test(c.fact));
+check("canon_claims Hengist: survives S1-S3 dominates; death claims are minority/records", !heng.error && heng.sentences_scanned > 100 && (heng.conflicts || []).some((c) => c.fact === "survives"), heng.error ? heng.error.slice(0, 120) : "sentences=" + heng.sentences_scanned + " conflicts=" + heng.conflicting_facts + (hengDies ? " dies=" + hengDies.values.slice(0, 3).map((v) => v.value + "x" + v.count).join(",") : ""));
+const amb = await call("canon_claims", { entity: "Ambrosius", aliases: ["Uthr"] });
+const ambAge = (amb.conflicts || []).find((c) => c.fact === "age at a point");
+const ambBorn = (amb.conflicts || []).find((c) => c.fact === "born (year)");
+check("canon_claims Ambrosius: 47-vs-49 at Badon and born 441-vs-438/443 surface as conflicts", !!ambAge && ambAge.values.some((v) => /^47 at Badon/i.test(v.value)) && ambAge.values.some((v) => /^49 at Badon/i.test(v.value)) && !!ambBorn && ambBorn.values.some((v) => v.value === "441"), (ambAge ? ambAge.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "no age fact") + " | " + (ambBorn ? ambBorn.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "no born fact"));
+check("canon_claims keeps location as profile, not conflict", !(amb.conflicts || []).some((c) => /location/.test(c.fact)) && (amb.profile || []).some((p) => /location/.test(p.fact)), "");
+
+// fold trigger (status only - a real fold is exercised by canon_pull above)
+const foldSt = await call("canon_fold", { status: true });
+check("canon_fold status reports the pull job", !foldSt.error && /idle|done|running|failed/.test(foldSt.status || foldSt.fold || ""), JSON.stringify(foldSt).slice(0, 100));
 
 // section / episode retrieval
 const sec = await call("canon_section", { file: "SEASON ONE - THE SANCTUARY - MASTER", start: "SECTION 5G" });

@@ -45,6 +45,10 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
 | `canon_section` | ONE section of a long doc by its line-start marker (`SECTION 5G`, `109`, `EPISODE 201`, `PART THREE`) instead of the whole 165K-char Master |
 | `canon_outline_text` | The section markers (with line numbers) of a doc that has no markdown headings, to pick a `start=` for `canon_section` |
 | `canon_episode` | EVERYTHING about one episode in one call, verbatim: Episode Map entry, Master section, State-compilation acts, amended blocks, character-file beats, every 00-series ruling line naming it, plus a ranked list of other docs that mention it. The way to load an episode without reading six compilations |
+| `canon_ruling` | One ruling by number: text, doc/line/date, every variant (R-95 and R-95 REFINED), what it touches, and the chain of later rulings that supersede / refine / mention it. `superseded_by` is explicit |
+| `canon_rulings` | The rulings index, newest first: filter by `query`, `episode`, `entity`, `since`; `open_only=true` lists the OPEN ITEMS / `[?]` questions with answered/unanswered. Reports coverage (rulings, docs) so nothing is silently missed |
+| `canon_claims` | CONTRADICTION FINDER for one entity: every live sentence naming it, claims extracted (born, ages, death episode, killer, survives, sword, colors, horse, slot, seat, ladder rank, event years), grouped by fact, conflicting values side by side with doc + line + newest ruling. Candidates, never verdicts |
+| `canon_fold` | THE FOLD: one call when Silas says "fold this into the corpus" (after gdrive-ops edits). Pull + re-embed + the list of Docs that changed. Not for ordinary edits |
 | `canon_lookup` | Drive id <-> local path <-> Drive name / path (full manifest entry, incl. edit link) |
 | `canon_outline` | Headings of a doc with line numbers |
 | `canon_graph` | `backlinks`, `links`, `orphans`, `deadends`, `unresolved` from the vault's wikilinks (no Obsidian needed) |
