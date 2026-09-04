@@ -1302,7 +1302,8 @@ server.tool(
         if (rel.length || e.mentions.includes(rid)) later.push(Object.assign({ how: rel.length ? rel : ["mentions"] }, rulingView(e, false)));
       }
       const newest = entries[0];
-      const superseding = later.filter((x) => x.how.some((w) => /supersed|replace|retired|dead|moot|overrid|corrected|withdrawn/.test(w)) && String(x.date || "") >= String(newest.date || ""));
+      // only explicit supersession words count here; "dead" / "retired" appear in DEAD lists that merely cite a ruling
+      const superseding = later.filter((x) => x.how.some((w) => /supersed|replace|overrid|withdrawn/.test(w)) && String(x.date || "") > String(newest.date || ""));
       const byNote = [...new Set(entries.flatMap((e) => e.relations.filter((x) => /superseded-by/.test(x.word)).map((x) => x.target)))];
       const status = byNote.length
         ? "SUPERSEDED by " + byNote.join(", ") + " (per the note on the ruling): " + String(newest.inline_note || "").slice(0, 240)
@@ -1429,9 +1430,13 @@ server.tool(
     try {
       const names = [entity].concat(aliases || []).map(fold).filter(Boolean);
       const nameRe = new RegExp("\\b(" + names.map(esc).join("|") + ")", "i");
-      const files = scopeFiles({ scope: "canonical", live_only, ext: "txt" }).filter((r) => include_rulings !== false || !/^canon\/00[A-Z]/.test(r.path));
+      // raw dictation transcripts are superseded by the Masters and full of pre-ruling numbers: never claims
+      const files = scopeFiles({ scope: "canonical", live_only, ext: "txt" }).filter((r) => (include_rulings !== false || !/^canon\/00[A-Z]/.test(r.path)) && !/THE-LAST-ROMAN-Transcript-/i.test(r.path));
       const facts = new Map(); // fact -> Map(value -> {count, docs:Set, examples:[]})
+      const records = new Map(); // same shape, for sentences that are RECORDS of dead values (DEAD / superseded / retired ...)
+      const RECORD_RE = new RegExp("\\b(DEAD|dead|superseded|SUPERSEDED|retired|RETIRED|struck|re-aged|re-ruled|re-cut|recut|patched|corrected|was \\d|no longer|formerly|the old|old profile|old arithmetic|is moot|withdrawn|dead material|kill log|ARCHIVED|archived|had missed|version \\d|^v\\d\\.)\\b|\\[DEAD|\\u2014 dead|- dead|^v\\d\\.[\\dx]");
       let sentencesScanned = 0;
+      let recordSentences = 0;
       const perDoc = new Map();
       for (const r of files) {
         let text;
@@ -1448,6 +1453,14 @@ server.tool(
             if (!nameRe.test(fold(s))) continue;
             sentencesScanned++;
             perDoc.set(r.path, (perDoc.get(r.path) || 0) + 1);
+            // a sentence that RECORDS a dead value ("born 438 - DEAD", "the old profile's 47") is not a live claim.
+            // A bracketed tag usually FOLLOWS the sentence ("... 47 [A]. [DEAD - 490 / 49]"), so test the sentence
+            // plus the 260 characters of the same paragraph that come after it.
+            const sAt = lines[i].indexOf(s);
+            const tail = sAt >= 0 ? lines[i].slice(sAt + s.length, sAt + s.length + 260) : "";
+            const isRecord = RECORD_RE.test(s) || /^\s*\[(DEAD|SUPERSEDED|ANSWERED|re-ruled|re-aged|retired)/i.test(tail) || /\[DEAD|\[SUPERSEDED|\[ANSWERED|\[re-ruled|\[re-aged/i.test(tail.slice(0, 120));
+            if (isRecord) recordSentences++;
+            const bucket = isRecord ? records : facts;
             for (const rule of CLAIM_RULES) {
               if (rule.guard && !rule.guard(s)) continue;
               rule.re.lastIndex = 0;
@@ -1457,8 +1470,8 @@ server.tool(
                 if (!v) continue;
                 if (!rule.profile && !nearEntity(s, m.index, nameRe, rule.fact)) continue;
                 if (rule.fact === "kills (who)" && !nameRe.test(fold(v))) continue;
-                if (!facts.has(rule.fact)) facts.set(rule.fact, new Map());
-                const fm = facts.get(rule.fact);
+                if (!bucket.has(rule.fact)) bucket.set(rule.fact, new Map());
+                const fm = bucket.get(rule.fact);
                 if (!fm.has(v)) fm.set(v, { count: 0, docs: new Set(), examples: [] });
                 const slot = fm.get(v);
                 slot.count++;
@@ -1488,13 +1501,16 @@ server.tool(
         for (const v of values) if (v.docs === 1) single.push({ fact, value: v.value, doc: [...fm.get(v.value).docs][0], example: v.examples[0] });
       }
       conflicts.sort((a, b) => b.values.length - a.values.length);
+      const deadRecords = [...records.entries()].map(([fact, fm]) => ({ fact, values: [...fm.entries()].map(([value, d]) => ({ value, count: d.count, docs: d.docs.size })).sort((a, b) => b.count - a.count) }));
       return ok({
         entity,
         aliases: aliases || [],
         sentences_scanned: sentencesScanned,
+        record_sentences_excluded: recordSentences,
         docs_with_mentions: perDoc.size,
         conflicting_facts: conflicts.length,
         conflicts,
+        dead_value_records: deadRecords,
         profile,
         single_source_claims: single.slice(0, 60),
         newest_rulings_naming_entity: rx.entries.filter((e) => nameRe.test(fold(e.text))).slice(0, 12).map((e) => rulingView(e, false)),

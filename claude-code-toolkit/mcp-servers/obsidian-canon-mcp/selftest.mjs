@@ -63,7 +63,8 @@ check("canon_claims Hengist: survives S1-S3 dominates; death claims are minority
 const amb = await call("canon_claims", { entity: "Ambrosius", aliases: ["Uthr"] });
 const ambAge = (amb.conflicts || []).find((c) => c.fact === "age at a point");
 const ambBorn = (amb.conflicts || []).find((c) => c.fact === "born (year)");
-check("canon_claims Ambrosius: 47-vs-49 at Badon and born 441-vs-438/443 surface as conflicts", !!ambAge && ambAge.values.some((v) => /^47 at Badon/i.test(v.value)) && ambAge.values.some((v) => /^49 at Badon/i.test(v.value)) && !!ambBorn && ambBorn.values.some((v) => v.value === "441"), (ambAge ? ambAge.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "no age fact") + " | " + (ambBorn ? ambBorn.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "no born fact"));
+const ambRecBorn = (amb.dead_value_records || []).find((c) => c.fact === "born (year)");
+check("canon_claims Ambrosius: live values are 441 / 49; dead 438/443/47 are in records, not conflicts (post-cascade 4 Sept)", !!ambBorn && ambBorn.values[0].value === "441" && !ambBorn.values.some((v) => v.value === "438" && v.count > 1) && (!ambAge || !ambAge.values.some((v) => /^47 at Badon/i.test(v.value) && v.count > 2)) && !!ambRecBorn && ambRecBorn.values.some((v) => v.value === "438" || v.value === "443") && amb.record_sentences_excluded > 20, "live born: " + (ambBorn ? ambBorn.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "-") + " | live age: " + (ambAge ? ambAge.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "-") + " | records excluded=" + amb.record_sentences_excluded);
 check("canon_claims keeps location as profile, not conflict", !(amb.conflicts || []).some((c) => /location/.test(c.fact)) && (amb.profile || []).some((p) => /location/.test(p.fact)), "");
 
 // fold trigger (status only - a real fold is exercised by canon_pull above)
