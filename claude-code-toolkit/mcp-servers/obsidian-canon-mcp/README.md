@@ -48,7 +48,9 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
 | `canon_history` | git log of pulls, optionally for one doc, `since=` |
 | `canon_diff` | git diff of one doc between two pulls |
 | `canon_images` | Search the 215 image captions (Brother-described, non-canon) with Drive links |
-| `canon_pull` | `lr-pull`: Drive -> mirror -> commit -> push. The only write. Background job with `status=true` polling; `dry_run=true` touches nothing |
+| `canon_pull` | `lr-pull`: Drive -> mirror -> commit -> push. The only write. Background job with `status=true` polling; `dry_run=true` touches nothing. A real pull chains a semantic re-index + re-embed |
+| `canon_semantic` | MEANING search (QMD folded in): plain-language questions, `mode` hybrid / vector / keyword, `rerank`, `live_only`. Local BM25 + vectors + LLM rerank |
+| `canon_embed` | Refresh the semantic index (re-index + re-embed). Background job, `status=true` to poll, `force=true` to redo everything |
 | `obsidian_search` | Obsidian's own search (`.md` only) with grep fallback when the app's search is cold |
 | `obsidian_cli` | Whitelisted read-only Obsidian CLI passthrough (backlinks, links, outline, tags, properties, files, vault, ...) |
 
@@ -74,6 +76,38 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
   app (known bug). `obsidian_search` falls back to grep when that happens.
 - The Obsidian CLI's output is swallowed under MSYS / Git Bash. The server uses node
   `execFile` (no shell), so this does not affect it; test the CLI by hand from PowerShell.
+
+## Semantic search (QMD) - how it is wired
+
+- QMD (`npm i -g @tobilu/qmd`, github.com/tobi/qmd) is NOT a second server. This server shells
+  out to its CLI with `--format json` and folds the results into `canon_semantic`.
+- Collection `canon` = the LIVE show text of this mirror: root Docs, `18 - Concept Art`, `19 - Video`,
+  `STORY-SHAPE ATLAS`, `_SESSION LOG`, derived twins for html/docx/pdf, and the image galleries
+  (162 files, ~6 MB). `_ARCHIVE` (superseded drafts, 4.5 MB) and `20 - HISTORICAL` (third-party
+  sources, 7.9 MB, never canon) are deliberately NOT embedded: they doubled the corpus, blew the
+  embed time cap, and are excluded from every default query anyway. They stay reachable through
+  `canon_grep live_only=false`. Mask lives in the ledger entry (S#326). Index: `~/.cache/qmd/index.sqlite`.
+- Embed cost on this laptop (Intel Iris Xe via Vulkan, 4 CPU cores): the first full pass ran
+  ~45 min; after a pull only changed docs re-embed. The embed child sits at ~5.2-5.4 GB RAM for
+  its whole run WITH or WITHOUT the batch caps (`--max-docs-per-batch 8 --max-batch-mb 4` are
+  passed anyway); the footprint is the loaded models plus Vulkan buffers, not the documents. It
+  is released the moment the child exits. If that is too much for a foreground work session,
+  run `canon_embed` when the machine is idle, or set `QMD_FORCE_CPU=1` and re-measure.
+  Models (~2 GB, local, downloaded once by `qmd pull`): embeddinggemma-300M, Qwen3-Reranker-0.6B,
+  qmd-query-expansion-1.7B.
+- Freshness: every real `canon_pull` chains `qmd update` + `qmd embed -c canon` in the background.
+  `canon_info.semantic_index` shows files_indexed / vectors_embedded / ready.
+- `keyword` mode needs no models and is instant. `hybrid` loads the models per call (seconds) and
+  reranks with a local LLM; `rerank=false` skips that. Set `QMD_FORCE_CPU=1` in the server env if
+  the CUDA path misbehaves.
+
+## Process hygiene (no orphans)
+
+- No daemons, no HTTP servers, no Bun. One child process per call (qmd / python / git / obsidian),
+  gone when it returns.
+- Every child is registered; when the server's stdin closes (Claude Desktop quit) or it exits, every
+  registered child is killed with its whole tree (`taskkill /T /F`). Timeouts kill the tree too.
+- The only long-lived process is the MCP server itself, owned by Claude Desktop.
 
 ## Files
 

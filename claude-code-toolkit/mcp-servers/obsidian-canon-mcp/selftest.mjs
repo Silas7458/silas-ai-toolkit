@@ -36,9 +36,10 @@ const names = tools.tools.map((t) => t.name).sort();
 console.log("tools: " + names.join(", "));
 const expected = [
   "canon_info", "canon_list", "canon_read", "canon_grep", "canon_topic", "canon_lookup", "canon_outline",
-  "canon_graph", "canon_history", "canon_diff", "canon_images", "canon_pull", "obsidian_search", "obsidian_cli",
+  "canon_graph", "canon_history", "canon_diff", "canon_images", "canon_pull", "canon_semantic", "canon_embed",
+  "obsidian_search", "obsidian_cli",
 ];
-check("all 14 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+check("all 16 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
 
 const info = await call("canon_info");
 check("canon_info", info.google_docs_live > 100 && /^ok/.test(info.search_selfcheck || ""), "live docs=" + info.google_docs_live + " last_pull=" + (info.last_pull || "").slice(0, 40) + " obsidian_running=" + info.obsidian_running);
@@ -119,6 +120,26 @@ check("canon_pull dry_run starts + reports", !pull.error && /running|done|failed
 let pullFinal = pull;
 for (let i = 0; i < 12 && pullFinal.status === "running"; i++) pullFinal = await call("canon_pull", { status: true, wait_seconds: 50 });
 check("canon_pull dry_run completes", pullFinal.status === "done", "status=" + pullFinal.status + " " + (pullFinal.summary || []).slice(-3).join(" / ").slice(0, 240));
+
+// semantic (QMD) - keyword mode needs no models; hybrid needs vectors
+const semInfo = info.semantic_index || {};
+check("canon_info reports semantic index", semInfo.installed === true && semInfo.files_indexed >= 150 && semInfo.ready === true, "files_indexed=" + semInfo.files_indexed + " vectors=" + semInfo.vectors_embedded + " ready=" + semInfo.ready);
+const kw = await call("canon_semantic", { query: "Commander's Sword", mode: "keyword", limit: 5 });
+check("canon_semantic keyword mode", !kw.error && kw.total > 0 && kw.results[0].file.startsWith("canon/"), kw.error ? kw.error.slice(0, 120) : kw.total + " hits; top=" + kw.results[0].file.slice(0, 70));
+const kwArch = await call("canon_semantic", { query: "Commander's Sword", mode: "keyword", limit: 40, live_only: false });
+check("canon_semantic live_only filter narrows", !kwArch.error && kwArch.total >= kw.total, kwArch.total + " >= " + kw.total);
+if (semInfo.ready) {
+  const t0 = Date.now();
+  const hy = await call("canon_semantic", { query: "who carries the golden-hilted sword and where did it come from", limit: 5 });
+  check("canon_semantic hybrid (vectors ready)", !hy.error && hy.total > 0 && hy.results.some((r) => /Commander|AMBROSIUS|00T|SPATHA/i.test(r.file + " " + (r.snippet || "") + " " + (r.title || ""))), (hy.error ? hy.error.slice(0, 120) : hy.total + " hits in " + ((Date.now() - t0) / 1000).toFixed(1) + "s; top=" + (hy.results[0] && hy.results[0].file.slice(0, 70))));
+  const t1 = Date.now();
+  const vec = await call("canon_semantic", { query: "a rider disobeys an order during the ride", mode: "vector", limit: 5 });
+  check("canon_semantic vector mode", !vec.error && vec.total > 0, (vec.error ? vec.error.slice(0, 120) : vec.total + " hits in " + ((Date.now() - t1) / 1000).toFixed(1) + "s; top=" + (vec.results[0] && vec.results[0].file.slice(0, 70))));
+} else {
+  console.log("SKIP  canon_semantic hybrid/vector (vectors not embedded yet)");
+}
+const embStatus = await call("canon_embed", { status: true });
+check("canon_embed status", !embStatus.error && typeof embStatus.files_indexed === "number", "status=" + embStatus.status + " vectors=" + embStatus.vectors_embedded);
 
 const esc = await call("canon_read", { file: "../../secret.txt" });
 check("path escape rejected", !!esc.error, (esc.error || "").slice(0, 80));

@@ -31,7 +31,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -96,24 +96,67 @@ function fold(s) {
     .replace(/[\u201c\u201d]/g, '"')
     .toLowerCase();
 }
+// Every subprocess this server starts is registered here and force-killed (whole tree) when the
+// server goes away - Windows does NOT kill children when the parent dies, and orphaned node /
+// python / llama.cpp processes eating RAM after Claude Desktop closes is exactly what Silas has
+// been burned by. No daemons, no HTTP servers, no Bun: one child per call, gone when it returns.
+const CHILDREN = new Set();
+function killTree(child) {
+  try {
+    if (child.exitCode !== null || child.signalCode) return;
+    if (process.platform === "win32") {
+      // taskkill /T takes the child's own children (qmd -> llama.cpp workers, python -> gws/git)
+      spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 10000 });
+    } else child.kill("SIGKILL");
+  } catch (e) {}
+}
+function killAllChildren() {
+  for (const c of CHILDREN) killTree(c);
+  CHILDREN.clear();
+}
+process.on("exit", killAllChildren);
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  try {
+    process.on(sig, () => {
+      killAllChildren();
+      process.exit(0);
+    });
+  } catch (e) {}
+}
+// Claude Desktop closing = our stdin closes. That is the reliable shutdown signal on Windows.
+process.stdin.on("end", () => {
+  killAllChildren();
+  process.exit(0);
+});
+process.stdin.on("close", () => {
+  killAllChildren();
+  process.exit(0);
+});
+
 function run(exe, args, opts) {
   const o = opts || {};
   return new Promise((resolve, reject) => {
-    execFile(
+    const child = execFile(
       exe,
       args,
       {
         cwd: o.cwd || VAULT,
         timeout: o.timeout || 60000,
+        killSignal: "SIGKILL",
         maxBuffer: BIG_BUFFER,
         windowsHide: true,
         env: Object.assign({}, process.env, o.env || {}),
       },
       (err, stdout, stderr) => {
-        if (err) reject(new Error((o.label || exe) + " failed: " + (String(stderr).trim() || err.message)));
-        else resolve({ stdout: String(stdout), stderr: String(stderr) });
+        CHILDREN.delete(child);
+        if (err) {
+          // on timeout execFile only kills the direct child; take the tree too
+          if (err.killed || err.signal) killTree(child);
+          reject(new Error((o.label || exe) + " failed: " + (String(stderr).trim() || err.message)));
+        } else resolve({ stdout: String(stdout), stderr: String(stderr) });
       }
     );
+    CHILDREN.add(child);
   });
 }
 
@@ -519,6 +562,121 @@ async function obsidian(command, kv, flags) {
 }
 
 // ---------------------------------------------------------------------------
+// QMD (tobi/qmd) - semantic search folded into this server. QMD keeps its own index
+// (~/.cache/qmd/index.sqlite) over the collection "canon" = this mirror. We shell out to
+// its CLI with --format json (keeps the MCP process light; models load inside qmd).
+// ---------------------------------------------------------------------------
+
+const QMD_COLLECTION = process.env.OBSIDIAN_CANON_QMD_COLLECTION || "canon";
+
+function qmdBin() {
+  if (process.env.OBSIDIAN_CANON_QMD_BIN) return process.env.OBSIDIAN_CANON_QMD_BIN;
+  const pkgDir = path.join(NPM_BIN, "node_modules", "@tobilu", "qmd");
+  // bin/qmd is a launcher that spawns a SECOND node for dist/cli/qmd.js; call the real entry
+  // directly so each query is exactly one child process, not two.
+  const direct = path.join(pkgDir, "dist", "cli", "qmd.js");
+  if (fs.existsSync(direct)) return direct;
+  try {
+    const pkg = JSON.parse(readText(path.join(pkgDir, "package.json")));
+    const bin = typeof pkg.bin === "string" ? pkg.bin : pkg.bin && (pkg.bin.qmd || Object.values(pkg.bin)[0]);
+    if (bin) return path.join(pkgDir, bin);
+  } catch (e) {}
+  return null;
+}
+
+async function qmd(args, opts) {
+  const bin = qmdBin();
+  if (!bin || !fs.existsSync(bin)) throw new Error("QMD is not installed (npm i -g @tobilu/qmd). Semantic search unavailable; canon_grep and canon_topic still work.");
+  const o = opts || {};
+  const r = await run(process.execPath, [bin].concat(args), {
+    timeout: o.timeout || 240000,
+    label: "qmd " + args[0],
+    env: Object.assign({ QMD_NO_COLOR: "1", NO_COLOR: "1" }, o.env || {}),
+  });
+  return r.stdout;
+}
+
+// WARM MODE (opt-in, OBSIDIAN_CANON_QMD_WARM=1): keep ONE qmd HTTP child alive with the models
+// loaded so semantic queries answer in seconds instead of paying the ~20-30 s model load per call.
+// It is a tracked child of this server (killed with it), never a detached daemon. Costs ~2 GB RAM
+// while Claude Desktop is open. Default is OFF (cold per-call, zero resident memory).
+const QMD_WARM = /^(1|true|yes)$/i.test(String(process.env.OBSIDIAN_CANON_QMD_WARM || ""));
+const QMD_PORT = parseInt(process.env.OBSIDIAN_CANON_QMD_PORT || "8181", 10);
+let WARM = null; // { child, ready: Promise }
+
+function warmQmd() {
+  if (WARM) return WARM.ready;
+  const bin = qmdBin();
+  const child = execFile(process.execPath, [bin, "mcp", "--http", "--port", String(QMD_PORT)], {
+    cwd: VAULT,
+    windowsHide: true,
+    maxBuffer: BIG_BUFFER,
+    env: Object.assign({}, process.env, { QMD_NO_COLOR: "1", NO_COLOR: "1" }),
+  }, () => {
+    CHILDREN.delete(child);
+    WARM = null; // died or was killed: next call cold-starts it again
+  });
+  CHILDREN.add(child);
+  const ready = (async () => {
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      try {
+        const r = await fetch("http://127.0.0.1:" + QMD_PORT + "/health");
+        if (r.ok) return true;
+      } catch (e) {}
+      await new Promise((res) => setTimeout(res, 500));
+    }
+    throw new Error("warm qmd did not come up on port " + QMD_PORT + " within 120 s");
+  })();
+  WARM = { child, ready };
+  return ready;
+}
+
+async function qmdQueryWarm(searches, opts) {
+  await warmQmd();
+  const body = { searches, collection: QMD_COLLECTION, limit: opts.limit, rerank: !!opts.rerank };
+  const r = await fetch("http://127.0.0.1:" + QMD_PORT + "/query", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(opts.timeout || 240000),
+  });
+  if (!r.ok) throw new Error("warm qmd /query HTTP " + r.status + ": " + (await r.text()).slice(0, 300));
+  return r.json();
+}
+
+function parseQmdStatus(text) {
+  const m1 = /Total:\s+(\d+)\s+files indexed/.exec(text);
+  const m2 = /Vectors:\s+(\d+)\s+embedded/.exec(text);
+  return { files_indexed: m1 ? +m1[1] : null, vectors_embedded: m2 ? +m2[1] : null, raw: text.trim().slice(0, 1500) };
+}
+
+// Chained after every real pull: re-index changed files, then refresh vectors. Background.
+let EMBED_JOB = null;
+function startEmbed(force) {
+  const job = { id: Date.now().toString(36), started: new Date().toISOString(), finished: null, status: "running", output: "" };
+  job.promise = qmd(["update"], { timeout: 600000 })
+    // batch caps keep the embed child's RAM bounded (an uncapped first embed peaked at 5.4 GB on this box)
+    .then((u) => qmd(["embed", "-c", QMD_COLLECTION, "--max-docs-per-batch", "8", "--max-batch-mb", "4"].concat(force ? ["-f"] : []), { timeout: 3600000 }).then((e) => (job.output = u + "\n" + e)))
+    .then(() => {
+      job.status = "done";
+    })
+    .catch((e) => {
+      job.status = "failed";
+      job.output = String(e.message || e);
+    })
+    .finally(() => {
+      job.finished = new Date().toISOString();
+    });
+  EMBED_JOB = job;
+  return job;
+}
+function embedView(job) {
+  if (!job) return { status: "idle" };
+  return { job_id: job.id, status: job.status, started: job.started, finished: job.finished, log_tail: job.status === "running" ? null : job.output.slice(-1200) };
+}
+
+// ---------------------------------------------------------------------------
 // git
 // ---------------------------------------------------------------------------
 
@@ -537,7 +695,7 @@ const server = new McpServer(
     instructions: [
       "THE LAST ROMAN canon mirror (Obsidian vault) - read access for Proctor. Google Drive is the source of truth; this mirror is one-way and generated.",
       "For 'explain X' questions: canon_topic first (ranks every live doc), then canon_read the top docs IN FULL (whole=true or page through with offset until done=true). Do not answer from snippets when the doc is available.",
-      "Text search: canon_grep (literal by default, regex=true for patterns). .txt is the canonical text of a Google Doc; .md is the same Doc with headings, punctuation escaped by Google.",
+      "Text search: canon_grep (literal by default, regex=true for patterns). Meaning search: canon_semantic (plain-language questions, no exact words needed; local BM25 + vectors + rerank). .txt is the canonical text of a Google Doc; .md is the same Doc with headings, punctuation escaped by Google.",
       "Live-only is the default everywhere (archives, session logs, historical and Brother's notes are excluded unless live_only=false).",
       "canon_lookup returns the Drive id for any doc so edits can be made on Drive with gdrive-ops; then canon_pull to refresh the mirror.",
       "Nothing here touches the Obsidian window. The obsidian_* tools only work when Obsidian is already running and are read-only.",
@@ -566,6 +724,22 @@ server.tool(
       } catch (e) {}
       const running = await obsidianRunning();
       const probe = grep("Valerius", { max_matches: 1, max_files: 1, context: 0 });
+      let semantic = { installed: false };
+      if (qmdBin()) {
+        try {
+          const st = parseQmdStatus(await qmd(["status"], { timeout: 60000 }));
+          semantic = {
+            installed: true,
+            collection: QMD_COLLECTION,
+            files_indexed: st.files_indexed,
+            vectors_embedded: st.vectors_embedded,
+            ready: !!(st.vectors_embedded && st.vectors_embedded > 0),
+            reindex_job: embedView(EMBED_JOB),
+          };
+        } catch (e) {
+          semantic = { installed: true, error: String(e.message || e).slice(0, 300) };
+        }
+      }
       return ok({
         server_version: VERSION,
         vault: VAULT,
@@ -582,6 +756,7 @@ server.tool(
         obsidian_running: running,
         obsidian_cli_available: running && fs.existsSync(OBSIDIAN_EXE),
         search_selfcheck: probe.total_matches > 0 ? "ok (" + probe.total_matches + " hits for Valerius)" : "FAILED - grep found nothing; mirror may be empty",
+        semantic_index: semantic,
         how_to_refresh: "canon_pull (runs lr-pull: Drive -> mirror -> git -> GitHub)",
       });
     } catch (e) {
@@ -1000,6 +1175,8 @@ function startPull(dry_run, full) {
       job.output = r.stdout + (r.stderr ? "\n[stderr]\n" + r.stderr : "");
       job.status = "done";
       job.exit_code = 0;
+      // keep the semantic index in step with the mirror (background; reported via canon_embed status=true)
+      if (!dry_run && qmdBin()) job.embed = startEmbed(false);
     })
     .catch((e) => {
       job.output = String(e.message || e);
@@ -1025,6 +1202,7 @@ function jobView(job) {
     finished: job.finished,
     summary: job.status === "running" ? ["still running - call canon_pull again with status=true"] : pullSummary(job.output),
     log_tail: job.status === "running" ? null : job.output.slice(-3000),
+    semantic_reindex: job.embed ? embedView(job.embed) : job.dry_run ? "skipped (dry run)" : qmdBin() ? "pending" : "QMD not installed",
   };
 }
 
@@ -1053,6 +1231,114 @@ server.tool(
       return ok(jobView(job));
     } catch (e) {
       CACHE = null;
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "canon_semantic",
+  "MEANING-based search over the whole corpus (QMD: BM25 + vector embeddings + LLM reranking, all local). Ask in plain language - 'scenes where a rider defies an order', 'why Valerius distrusts Mardin' - no exact words needed. mode=hybrid (default, best), vector (pure similarity), keyword (BM25 only, instant). Returns ranked passages with file, line, snippet and Drive id; then canon_read the doc for the full text. Complements canon_grep (exact) and canon_topic (mention counts).",
+  {
+    query: z.string().describe("Natural-language question or description. Advanced: a multi-line typed query, e.g. 'lex: Commander's Sword\\nvec: who carries the golden sword'"),
+    mode: z.enum(["hybrid", "vector", "keyword"]).optional().describe("hybrid (default: keywords + meaning fused) | vector (meaning only) | keyword (BM25 only, instant, exact terms)"),
+    limit: z.number().optional().describe("Max results (default 10, max 40)"),
+    keywords: z.string().optional().describe("hybrid only: the exact-term half of the query (names, objects). Default: the query itself"),
+    expand: z.boolean().optional().describe("hybrid only: let QMD's local LLM rewrite the question into several sub-queries (default false: adds ~15-30 s on this machine)"),
+    rerank: z.boolean().optional().describe("hybrid only: LLM reranking of the top candidates (default false: adds ~40 s+ on this machine)"),
+    live_only: z.boolean().optional().describe("Default true: drop archives, session logs, historical, Brother's notes"),
+    full: z.boolean().optional().describe("true = return the full matching document text instead of a snippet (large)"),
+  },
+  async ({ query, mode, limit, keywords, expand, rerank, live_only, full }) => {
+    try {
+      const n = Math.min(40, Math.max(1, limit || 10));
+      const cmd = mode === "vector" ? "vsearch" : mode === "keyword" ? "search" : "query";
+      const fetchN = live_only === false ? n : n * 2;
+      const typed = /^(intent|lex|vec|hyde):/m.test(query);
+      // Default hybrid = a typed lex+vec document: skips the expansion model, keeps meaning + exact terms.
+      const queryText = cmd === "query" && !typed && !expand
+        ? "lex: " + (keywords || query).replace(/\r?\n/g, " ") + "\nvec: " + query.replace(/\r?\n/g, " ")
+        : query;
+      let rows;
+      if (QMD_WARM && cmd !== "search") {
+        const searches = cmd === "vsearch"
+          ? [{ type: "vec", query }]
+          : typed
+            ? query.split(/\r?\n/).map((l) => /^(lex|vec|hyde):\s*(.*)$/.exec(l)).filter(Boolean).map((m) => ({ type: m[1], query: m[2] }))
+            : [{ type: "lex", query: (keywords || query).replace(/\r?\n/g, " ") }, { type: "vec", query: query.replace(/\r?\n/g, " ") }];
+        const data = await qmdQueryWarm(searches, { limit: fetchN, rerank: !!rerank, timeout: 240000 });
+        rows = Array.isArray(data) ? data : data.results || data.items || data.hits || [];
+      } else {
+        const args = [cmd, queryText, "-c", QMD_COLLECTION, "-n", String(fetchN), "--format", "json", "--full-path"];
+        if (cmd === "query" && !rerank) args.push("--no-rerank");
+        if (cmd === "query" && rerank) args.push("-C", "8");
+        if (full) args.push("--full");
+        const out = await qmd(args, { timeout: 300000 });
+        try {
+          rows = JSON.parse(out.slice(out.search(/[[{]/)));
+        } catch (e) {
+          throw new Error("qmd returned unparseable output: " + out.slice(0, 400));
+        }
+        if (!Array.isArray(rows)) rows = rows.results || rows.items || [];
+      }
+      const ix = index();
+      const results = [];
+      for (const r of rows) {
+        const abs = r.file || r.path || "";
+        let relPath = null;
+        try {
+          relPath = rel(path.resolve(abs));
+        } catch (e) {}
+        const rec = relPath ? ix.byPath.get(relPath) || ix.byPathFold.get(fold(relPath)) : null;
+        const live = rec ? rec.live : !NON_LIVE_RE.test(relPath || "");
+        if (live_only !== false && !live) continue;
+        results.push({
+          file: relPath || abs,
+          live,
+          drive_id: rec ? rec.drive_id : null,
+          drive_name: rec ? rec.drive_name : null,
+          line: r.line != null ? r.line : null,
+          score: r.score != null ? r.score : null,
+          title: r.title || null,
+          snippet: r.snippet || r.text || r.content || null,
+        });
+        if (results.length >= n) break;
+      }
+      let note = null;
+      if (!results.length) {
+        try {
+          const st = parseQmdStatus(await qmd(["status"], { timeout: 60000 }));
+          if (!st.vectors_embedded && cmd !== "search") note = "No vectors embedded yet - run canon_embed (or wait for the post-pull re-embed). keyword mode works without embeddings.";
+        } catch (e) {}
+      }
+      return ok({ query, mode: mode || "hybrid", engine: (QMD_WARM && cmd !== "search" ? "qmd warm http " : "qmd ") + cmd, expand: !!expand, rerank: !!rerank, live_only: live_only !== false, total: results.length, results, note });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "canon_embed",
+  "Refresh the semantic index (QMD): re-index changed files and regenerate vector embeddings for the canon collection. Runs automatically after every real canon_pull; call manually if canon_semantic says vectors are missing. Background job: status=true reports progress. force=true re-embeds everything.",
+  {
+    status: z.boolean().optional().describe("true = report the current/last embed job, start nothing"),
+    force: z.boolean().optional().describe("true = re-embed all documents (slow)"),
+    wait_seconds: z.number().optional().describe("Wait up to this long before returning 'running' (default 30, max 55)"),
+  },
+  async ({ status, force, wait_seconds }) => {
+    try {
+      if (!qmdBin()) throw new Error("QMD is not installed (npm i -g @tobilu/qmd)");
+      const wait = Math.min(55, Math.max(0, wait_seconds == null ? 30 : wait_seconds)) * 1000;
+      let job = EMBED_JOB;
+      if (!status) {
+        if (job && job.status === "running") return ok(Object.assign({ note: "an embed is already running" }, embedView(job)));
+        job = startEmbed(!!force);
+      }
+      if (job && job.status === "running" && wait > 0) await Promise.race([job.promise, new Promise((res) => setTimeout(res, wait))]);
+      const st = parseQmdStatus(await qmd(["status"], { timeout: 60000 }));
+      return ok(Object.assign(embedView(job), { files_indexed: st.files_indexed, vectors_embedded: st.vectors_embedded }));
+    } catch (e) {
       return fail(e);
     }
   }
