@@ -948,6 +948,162 @@ server.tool(
   }
 );
 
+// ---------------------------------------------------------------------------
+// Section / episode retrieval - the answer to "Proctor must read three Masters and three State
+// compilations before he can write an episode". The Docs have no markdown headings; their sections
+// start with text markers: "SECTION 5F - EPISODE 108 - ...", "108 - \"BUTTERFLY DRAGON\"", "EPISODE 201 - ...",
+// "PART TWO - ...". A block runs from its marker line to the next marker line. Dashes in the Docs are
+// em/en dashes (U+2014 / U+2013), matched by escape below - this file stays ASCII.
+// ---------------------------------------------------------------------------
+
+const DASH = "[\\u2014\\u2013\\-]";
+const MARKER_RE = new RegExp("^(SECTION\\s+\\S+|PART\\s+\\S+|EPISODE\\s+\\d{3}\\b|[1-4]\\d{2}\\s*" + DASH + "|S[1-4]E\\d{2}\\b|CHAPTER\\s+\\S+|APPENDIX\\b)");
+
+function normalizeEpisode(ep) {
+  const s = String(ep).trim().toUpperCase();
+  let m = /^S?([1-4])\s*[EX]\s*(\d{1,2})$/.exec(s);
+  if (m) return { number: +m[1] * 100 + +m[2], code: "S" + m[1] + "E" + String(+m[2]).padStart(2, "0") };
+  m = /^([1-4])(\d{2})$/.exec(s);
+  if (m) return { number: +s, code: "S" + m[1] + "E" + m[2] };
+  throw new Error("episode must look like 108, S1E08 or 1x08 (got '" + ep + "')");
+}
+
+function episodeStartRe(epi) {
+  const n = String(epi.number);
+  return new RegExp("^(SECTION\\s+\\S+\\s*" + DASH + "\\s*)?(EPISODE\\s+)?" + n + "(\\s*" + DASH + "|\\s*$|\\s*\\(|\\s*\\[|\\s*:)|^" + epi.code + "\\b", "i");
+}
+
+// A STRUCTURAL block ("SECTION 5F - EPISODE 108 - ...", "108 - \"TITLE\"", "EPISODE 201 - ...") runs to the
+// next section marker. A BEAT paragraph inside a character file ("108: he ...", "204 (Act One): ...",
+// "207-210: no beat written") is one paragraph: it ends at the next blank line or the next
+// episode-numbered paragraph. Without this split a one-line beat swallowed the rest of the file.
+const STRUCT_RE = new RegExp("^(SECTION\\s+\\S+\\s*" + DASH + "\\s*)?(EPISODE\\s+)?[1-4]\\d{2}\\s*(" + DASH + "\\s*[\"\\u201c\\u2018'(A-Za-z]|\\[|$)");
+const BEAT_END_RE = new RegExp("^\\s*$|^(S[1-4]E\\d{2}|[1-4]\\d{2})\\b|^(SECTION|PART|EPISODE|CHAPTER|APPENDIX)\\b");
+
+function sliceBlocks(lines, startRe, endRe, maxLinesPerBlock, beatEndRe) {
+  const blocks = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!startRe.test(lines[i])) continue;
+    const structural = !beatEndRe || STRUCT_RE.test(lines[i]);
+    const stop = structural ? endRe : beatEndRe;
+    let j = i + 1;
+    while (j < lines.length && !stop.test(lines[j])) j++;
+    const cap = maxLinesPerBlock || 100000;
+    blocks.push({ kind: structural ? "section" : "beat", from_line: i + 1, to_line: j, truncated: j - i > cap, text: lines.slice(i, Math.min(j, i + cap)).join("\n") });
+    i = j - 1;
+  }
+  return blocks;
+}
+
+server.tool(
+  "canon_section",
+  "Read ONE section of a long document instead of the whole thing (a Master is ~165K chars; one episode section is ~10K). start = text or regex matched at the beginning of a line (e.g. 'SECTION 5G', '109 -', 'EPISODE 201', 'PART THREE'); the section runs to the next section marker (SECTION / PART / EPISODE / 'nnn -' / SnEnn) or to end= if given. Use canon_outline_text first if unsure of the markers.",
+  {
+    file: z.string().describe("Path, Drive id, Drive name or unique fragment (e.g. 'SEASON ONE - THE SANCTUARY - MASTER')"),
+    start: z.string().describe("Line-start text or regex that opens the section, e.g. 'SECTION 5G' or '^109'"),
+    end: z.string().optional().describe("Optional regex for the line that closes the section (exclusive). Default: the next section marker"),
+    regex: z.boolean().optional().describe("Treat start/end as regex (default: literal, anchored to line start, case-insensitive)"),
+    max_lines: z.number().optional().describe("Cap per block (default 1500)"),
+  },
+  async ({ file, start, end, regex, max_lines }) => {
+    try {
+      const r = chooseOne(file);
+      const text = readText(safeAbs(r.path));
+      const lines = text.split(/\r?\n/);
+      const startRe = new RegExp("^\\s*" + (regex ? start : esc(start)), "i");
+      const endRe = end ? new RegExp(regex ? end : "^\\s*" + esc(end), "i") : MARKER_RE;
+      const blocks = sliceBlocks(lines, startRe, endRe, max_lines || 1500);
+      if (!blocks.length) throw new Error("no line in " + r.path + " starts with '" + start + "'. Try canon_outline_text to see the markers.");
+      return ok({ file: describe(r), total_lines: lines.length, blocks_found: blocks.length, blocks });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "canon_outline_text",
+  "The section markers of a document that has no markdown headings (Masters, State compilations, Episode Map): every line that starts with SECTION / PART / EPISODE / 'nnn -' / SnEnn, with line numbers. Use it to pick a start= for canon_section.",
+  { file: z.string().describe("Path, Drive id, Drive name or unique fragment") },
+  async ({ file }) => {
+    try {
+      const r = chooseOne(file);
+      const lines = readText(safeAbs(r.path)).split(/\r?\n/);
+      const markers = [];
+      for (let i = 0; i < lines.length; i++) if (MARKER_RE.test(lines[i])) markers.push({ line: i + 1, text: lines[i].slice(0, 160) });
+      return ok({ file: describe(r), total_lines: lines.length, markers });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
+server.tool(
+  "canon_episode",
+  "EVERYTHING the corpus holds about one episode, verbatim, in one call - the way to load an episode into a session without reading three Masters and three State compilations. Returns: the episode's blocks from every live doc that has a section for it (Episode Map entry, Master section, State compilation acts, amended blocks), every 00-series ruling line that names it, and a ranked list of other docs that mention it (character files etc.) for follow-up with canon_read. Retrieval, not a summary.",
+  {
+    episode: z.string().describe("108, S1E08 or 1x08"),
+    max_lines_per_block: z.number().optional().describe("Cap per block (default 1200)"),
+    include_mentions: z.boolean().optional().describe("Default true: list other live docs mentioning the episode with counts"),
+  },
+  async ({ episode, max_lines_per_block, include_mentions }) => {
+    try {
+      const epi = normalizeEpisode(episode);
+      const startRe = episodeStartRe(epi);
+      const ix = index();
+      const docs = ix.records.filter((r) => r.live && canonicalText(r) && r.ext === ".txt");
+      const blocks = [];
+      const rulings = [];
+      const mentions = [];
+      const mentionRe = new RegExp("(^|[^0-9])" + epi.number + "([^0-9]|$)|\\b" + epi.code + "\\b", "i");
+      let totalChars = 0;
+      for (const r of docs) {
+        let text;
+        try {
+          text = readText(safeAbs(r.path));
+        } catch (e) {
+          continue;
+        }
+        const lines = text.split(/\r?\n/);
+        const found = sliceBlocks(lines, startRe, MARKER_RE, max_lines_per_block || 1200, BEAT_END_RE);
+        const isRuling = /^canon\/00[A-Z]\b/i.test(r.path) || /AUTHOR RULINGS|CANON AMENDMENTS/i.test(r.base);
+        if (found.length && !isRuling) {
+          for (const b of found) {
+            totalChars += b.text.length;
+            blocks.push(Object.assign({ file: r.path, drive_id: r.drive_id, drive_name: r.drive_name, modified: r.modified }, b));
+          }
+          continue;
+        }
+        let count = 0;
+        const hits = [];
+        for (let i = 0; i < lines.length; i++) {
+          if (mentionRe.test(lines[i])) {
+            count++;
+            if (isRuling && hits.length < 40) hits.push({ line: i + 1, text: lines[i].slice(0, 600) });
+          }
+        }
+        if (!count) continue;
+        if (isRuling) rulings.push({ file: r.path, drive_id: r.drive_id, match_count: count, lines: hits });
+        else if (include_mentions !== false) mentions.push({ file: r.path, drive_id: r.drive_id, drive_name: r.drive_name, match_count: count });
+      }
+      blocks.sort((a, b) => (/EPISODE MAP/i.test(b.file) - /EPISODE MAP/i.test(a.file)) || (/MASTER/i.test(b.file) - /MASTER/i.test(a.file)) || a.file.localeCompare(b.file));
+      rulings.sort((a, b) => a.file.localeCompare(b.file));
+      mentions.sort((a, b) => b.match_count - a.match_count);
+      return ok({
+        episode: epi.code + " (" + epi.number + ")",
+        blocks_found: blocks.length,
+        total_block_chars: totalChars,
+        blocks,
+        rulings_mentioning: rulings,
+        other_docs_mentioning: mentions.slice(0, 40),
+        note: "Blocks are verbatim canon text. Rulings override older episode text (the 00-series is newest-wins). For character detail, canon_read the top other_docs_mentioning in full.",
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
 server.tool(
   "canon_lookup",
   "Resolve a Drive id, Drive name, Drive path, or local path to the full manifest entry (id, name, Drive path, link, mime, modified, live, local files). Use the id with gdrive-ops to edit the source on Drive.",

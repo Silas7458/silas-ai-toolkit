@@ -37,9 +37,28 @@ console.log("tools: " + names.join(", "));
 const expected = [
   "canon_info", "canon_list", "canon_read", "canon_grep", "canon_topic", "canon_lookup", "canon_outline",
   "canon_graph", "canon_history", "canon_diff", "canon_images", "canon_pull", "canon_semantic", "canon_embed",
+  "canon_section", "canon_outline_text", "canon_episode",
   "obsidian_search", "obsidian_cli",
 ];
-check("all 16 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+check("all 19 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+
+// section / episode retrieval
+const sec = await call("canon_section", { file: "SEASON ONE - THE SANCTUARY - MASTER", start: "SECTION 5G" });
+check("canon_section SECTION 5G of the S1 Master", !sec.error && sec.blocks_found === 1 && sec.blocks[0].text.length > 5000 && sec.blocks[0].text.length < 40000 && /DRAGON TRAP/.test(sec.blocks[0].text), sec.error ? sec.error.slice(0, 120) : "L" + sec.blocks[0].from_line + "-" + sec.blocks[0].to_line + " " + sec.blocks[0].text.length + " chars");
+const ot = await call("canon_outline_text", { file: "SEASON TWO - RESISTANCE - MASTER" });
+check("canon_outline_text S2 Master markers", !ot.error && ot.markers.length >= 10 && ot.markers.some((m) => /^201\b|EPISODE 201/.test(m.text)), ot.error ? ot.error.slice(0, 120) : ot.markers.length + " markers");
+const ep = await call("canon_episode", { episode: "108" });
+const epFiles = (ep.blocks || []).map((b) => b.file);
+const master108 = (ep.blocks || []).find((b) => /MASTER EPISODE DOCUMENT/.test(b.file) && /^SECTION 5F/.test(b.text));
+const beatBlocks = (ep.blocks || []).filter((b) => b.kind === "beat");
+check("canon_episode 108: Episode Map + Master + State blocks", !ep.error && epFiles.some((f) => /EPISODE MAP/.test(f)) && !!master108 && epFiles.some((f) => /STATE OF THE SEASON/.test(f)), ep.error ? ep.error.slice(0, 120) : ep.blocks_found + " blocks, " + ep.total_block_chars + " chars, rulings=" + (ep.rulings_mentioning || []).length);
+check("canon_episode 108: Master section is the 5F block (~20K chars)", !!master108 && master108.text.length > 15000 && master108.text.length < 30000, master108 ? master108.text.length + " chars L" + master108.from_line + "-" + master108.to_line : "missing");
+check("canon_episode 108: character-file beats stay paragraph-sized", beatBlocks.length > 0 && beatBlocks.every((b) => b.to_line - b.from_line <= 12), beatBlocks.length + " beats; max span " + Math.max(0, ...beatBlocks.map((b) => b.to_line - b.from_line)) + " lines");
+check("canon_episode 108: rulings named (00K/00L/00S/00T)", (ep.rulings_mentioning || []).some((r) => /00L/.test(r.file)) && (ep.rulings_mentioning || []).some((r) => /00T/.test(r.file)), (ep.rulings_mentioning || []).map((r) => r.file.slice(6, 9)).join(" "));
+const epCode = await call("canon_episode", { episode: "S2E04", include_mentions: false });
+check("canon_episode accepts S2E04 form", !epCode.error && /S2E04/.test(epCode.episode) && epCode.blocks_found >= 3, epCode.error ? epCode.error.slice(0, 120) : epCode.episode + " " + epCode.blocks_found + " blocks");
+const epBad = await call("canon_episode", { episode: "banana" });
+check("canon_episode rejects nonsense", /episode must look like/.test(epBad.error || ""), "");
 
 const info = await call("canon_info");
 check("canon_info", info.google_docs_live > 100 && /^ok/.test(info.search_selfcheck || ""), "live docs=" + info.google_docs_live + " last_pull=" + (info.last_pull || "").slice(0, 40) + " obsidian_running=" + info.obsidian_running);

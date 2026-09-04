@@ -42,6 +42,9 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
 | `canon_read` | Read a doc by path, Drive id, Drive name or unique fragment. Paged (`offset`/`limit`, `done`, `next_offset`) or `whole=true`. `format=md` for the headings twin |
 | `canon_grep` | ripgrep equivalent over the canonical text. Literal by default, `regex`, `whole_word`, `case_sensitive`, `context` 0-10, `scope` canonical/txt/md/all, `live_only` |
 | `canon_topic` | "Explain X" starter: every live doc ranked by relevance, matching lines per doc, `read_in_full_next` list, related images |
+| `canon_section` | ONE section of a long doc by its line-start marker (`SECTION 5G`, `109`, `EPISODE 201`, `PART THREE`) instead of the whole 165K-char Master |
+| `canon_outline_text` | The section markers (with line numbers) of a doc that has no markdown headings, to pick a `start=` for `canon_section` |
+| `canon_episode` | EVERYTHING about one episode in one call, verbatim: Episode Map entry, Master section, State-compilation acts, amended blocks, character-file beats, every 00-series ruling line naming it, plus a ranked list of other docs that mention it. The way to load an episode without reading six compilations |
 | `canon_lookup` | Drive id <-> local path <-> Drive name / path (full manifest entry, incl. edit link) |
 | `canon_outline` | Headings of a doc with line numbers |
 | `canon_graph` | `backlinks`, `links`, `orphans`, `deadends`, `unresolved` from the vault's wikilinks (no Obsidian needed) |
