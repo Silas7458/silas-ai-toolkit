@@ -45,6 +45,12 @@ check("all 19 tools registered", expected.every((n) => names.includes(n)) && nam
 // section / episode retrieval
 const sec = await call("canon_section", { file: "SEASON ONE - THE SANCTUARY - MASTER", start: "SECTION 5G" });
 check("canon_section SECTION 5G of the S1 Master", !sec.error && sec.blocks_found === 1 && sec.blocks[0].text.length > 5000 && sec.blocks[0].text.length < 40000 && /DRAGON TRAP/.test(sec.blocks[0].text), sec.error ? sec.error.slice(0, 120) : "L" + sec.blocks[0].from_line + "-" + sec.blocks[0].to_line + " " + sec.blocks[0].text.length + " chars");
+const secEp = await call("canon_section", { file: "SEASON ONE - THE SANCTUARY - MASTER", start: "108" });
+check("canon_section bare episode number -> act-broken section first (Proctor's Test B catch)", !secEp.error && secEp.episode === "S1E08" && /^SECTION 5F/.test(secEp.blocks[0].text) && secEp.blocks[0].text.length > 15000, secEp.error ? secEp.error.slice(0, 120) : secEp.blocks_found + " blocks; first=" + secEp.blocks[0].text.slice(0, 40) + " (" + secEp.blocks[0].text.length + " chars)");
+const big = await call("canon_read", { file: "VALERIUS FLAVIUS - CHARACTER FILE", whole: true });
+check("canon_read whole=true pages at ~60K chars (Desktop overflow guard)", !big.error && big.page_capped_by_chars === true && big.done === false && big.next_offset > 1 && big.text.length <= 61000, big.error ? big.error.slice(0, 120) : big.text.length + " chars, next_offset=" + big.next_offset + " of " + big.total_lines + " lines");
+const big2 = await call("canon_read", { file: "VALERIUS FLAVIUS - CHARACTER FILE", whole: true, offset: big.next_offset });
+check("canon_read continues to done=true", !big2.error && big2.done === true, big2.error ? big2.error.slice(0, 120) : big2.text.length + " chars, done=" + big2.done);
 const ot = await call("canon_outline_text", { file: "SEASON TWO - RESISTANCE - MASTER" });
 check("canon_outline_text S2 Master markers", !ot.error && ot.markers.length >= 10 && ot.markers.some((m) => /^201\b|EPISODE 201/.test(m.text)), ot.error ? ot.error.slice(0, 120) : ot.markers.length + " markers");
 const ep = await call("canon_episode", { episode: "108" });

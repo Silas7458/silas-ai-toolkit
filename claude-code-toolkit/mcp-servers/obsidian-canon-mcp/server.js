@@ -820,9 +820,10 @@ server.tool(
     format: z.enum(["txt", "md", "auto"]).optional().describe("auto (default) = .txt for Google Docs; md = headings-kept twin"),
     offset: z.number().optional().describe("1-based start line (default 1)"),
     limit: z.number().optional().describe("Lines per page (default 600, max 5000)"),
-    whole: z.boolean().optional().describe("true = return the entire file regardless of limit"),
+    whole: z.boolean().optional().describe("true = return the entire file regardless of limit (still paged at ~60K chars: keep calling with next_offset until done=true)"),
+    max_chars: z.number().optional().describe("Page size cap in characters (default 60000; Claude Desktop truncates larger tool results)"),
   },
-  async ({ file, format, offset, limit, whole }) => {
+  async ({ file, format, offset, limit, whole, max_chars }) => {
     try {
       const ext = format === "md" ? ".md" : format === "txt" ? ".txt" : null;
       const r = chooseOne(file, { ext });
@@ -831,7 +832,21 @@ server.tool(
       const lines = text.split(/\r?\n/);
       const start = Math.max(1, offset || 1);
       const lim = whole ? lines.length : Math.min(5000, limit || 600);
-      const slice = lines.slice(start - 1, start - 1 + lim);
+      let slice = lines.slice(start - 1, start - 1 + lim);
+      // Claude Desktop truncates very large tool results; keep one page under ~60K chars and let the
+      // caller continue from next_offset (a 90K-char character file overflowed in Proctor's Test C).
+      const MAX_CHARS = Math.max(20000, Math.min(200000, max_chars || 60000));
+      let chars = 0;
+      let cut = slice.length;
+      for (let i = 0; i < slice.length; i++) {
+        chars += slice[i].length + 1;
+        if (chars > MAX_CHARS && i > 0) {
+          cut = i;
+          break;
+        }
+      }
+      const capped = cut < slice.length;
+      if (capped) slice = slice.slice(0, cut);
       const end = start - 1 + slice.length;
       const twin = r.md_twin ? r.md_twin : r.ext === ".md" && r.has_txt_twin ? r.path.slice(0, -3) + ".txt" : null;
       return ok({
@@ -843,6 +858,7 @@ server.tool(
         to_line: end,
         done: end >= lines.length,
         next_offset: end >= lines.length ? null : end + 1,
+        page_capped_by_chars: capped,
         text: slice.join("\n"),
       });
     } catch (e) {
@@ -1014,11 +1030,21 @@ server.tool(
       const r = chooseOne(file);
       const text = readText(safeAbs(r.path));
       const lines = text.split(/\r?\n/);
-      const startRe = new RegExp("^\\s*" + (regex ? start : esc(start)), "i");
+      // A bare episode number ("108", "S1E08") means the EPISODE: match every marker form
+      // ("SECTION 5F - EPISODE 108 - ...", "108 - \"TITLE\"", "EPISODE 108") and put the act-broken
+      // structural section first, superseded stubs after (Proctor's Test B hit the stubs with start="108").
+      let epi = null;
+      try {
+        if (!regex && /^(S?[1-4]\s*[EX]\s*\d{1,2}|[1-4]\d{2})$/i.test(String(start).trim())) epi = normalizeEpisode(start);
+      } catch (e) {
+        epi = null;
+      }
+      const startRe = epi ? episodeStartRe(epi) : new RegExp("^\\s*" + (regex ? start : esc(start)), "i");
       const endRe = end ? new RegExp(regex ? end : "^\\s*" + esc(end), "i") : MARKER_RE;
-      const blocks = sliceBlocks(lines, startRe, endRe, max_lines || 1500);
+      let blocks = sliceBlocks(lines, startRe, endRe, max_lines || 1500, epi ? BEAT_END_RE : null);
+      if (epi) blocks.sort((a, b) => (b.kind === "section") - (a.kind === "section") || b.text.length - a.text.length);
       if (!blocks.length) throw new Error("no line in " + r.path + " starts with '" + start + "'. Try canon_outline_text to see the markers.");
-      return ok({ file: describe(r), total_lines: lines.length, blocks_found: blocks.length, blocks });
+      return ok({ file: describe(r), total_lines: lines.length, episode: epi ? epi.code : null, blocks_found: blocks.length, blocks });
     } catch (e) {
       return fail(e);
     }
