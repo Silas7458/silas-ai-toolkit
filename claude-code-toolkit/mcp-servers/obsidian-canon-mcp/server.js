@@ -980,14 +980,18 @@ function episodeStartRe(epi) {
 const STRUCT_RE = new RegExp("^(SECTION\\s+\\S+\\s*" + DASH + "\\s*)?(EPISODE\\s+)?[1-4]\\d{2}\\s*(" + DASH + "\\s*[\"\\u201c\\u2018'(A-Za-z]|\\[|$)");
 const BEAT_END_RE = new RegExp("^\\s*$|^(S[1-4]E\\d{2}|[1-4]\\d{2})\\b|^(SECTION|PART|EPISODE|CHAPTER|APPENDIX)\\b");
 
-function sliceBlocks(lines, startRe, endRe, maxLinesPerBlock, beatEndRe) {
+function sliceBlocks(lines, startRe, endRe, maxLinesPerBlock, beatEndRe, forceBeat) {
   const blocks = [];
   for (let i = 0; i < lines.length; i++) {
     if (!startRe.test(lines[i])) continue;
-    const structural = !beatEndRe || STRUCT_RE.test(lines[i]);
+    // Character files write beats as "109 - He ..." (dash + capital), the same shape as a section
+    // header, so the punctuation test is not enough there: under Characters/ every block is a beat.
+    const structural = !beatEndRe || (!forceBeat && STRUCT_RE.test(lines[i]));
     const stop = structural ? endRe : beatEndRe;
     let j = i + 1;
-    while (j < lines.length && !stop.test(lines[j])) j++;
+    // Google Docs export one paragraph per line and the character files have no blank lines, so a
+    // beat is exactly its own paragraph; only structural sections run on to the next marker.
+    if (structural) while (j < lines.length && !stop.test(lines[j])) j++;
     const cap = maxLinesPerBlock || 100000;
     blocks.push({ kind: structural ? "section" : "beat", from_line: i + 1, to_line: j, truncated: j - i > cap, text: lines.slice(i, Math.min(j, i + cap)).join("\n") });
     i = j - 1;
@@ -1065,7 +1069,8 @@ server.tool(
           continue;
         }
         const lines = text.split(/\r?\n/);
-        const found = sliceBlocks(lines, startRe, MARKER_RE, max_lines_per_block || 1200, BEAT_END_RE);
+        const beatOnly = /\/Characters\//i.test(r.path) || /CHARACTER (FILE|SKETCH|PROFILE)/i.test(r.base);
+        const found = sliceBlocks(lines, startRe, MARKER_RE, max_lines_per_block || 1200, BEAT_END_RE, beatOnly);
         const isRuling = /^canon\/00[A-Z]\b/i.test(r.path) || /AUTHOR RULINGS|CANON AMENDMENTS/i.test(r.base);
         if (found.length && !isRuling) {
           for (const b of found) {

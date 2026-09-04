@@ -55,6 +55,11 @@ check("canon_episode 108: Episode Map + Master + State blocks", !ep.error && epF
 check("canon_episode 108: Master section is the 5F block (~20K chars)", !!master108 && master108.text.length > 15000 && master108.text.length < 30000, master108 ? master108.text.length + " chars L" + master108.from_line + "-" + master108.to_line : "missing");
 check("canon_episode 108: character-file beats stay paragraph-sized", beatBlocks.length > 0 && beatBlocks.every((b) => b.to_line - b.from_line <= 12), beatBlocks.length + " beats; max span " + Math.max(0, ...beatBlocks.map((b) => b.to_line - b.from_line)) + " lines");
 check("canon_episode 108: rulings named (00K/00L/00S/00T)", (ep.rulings_mentioning || []).some((r) => /00L/.test(r.file)) && (ep.rulings_mentioning || []).some((r) => /00T/.test(r.file)), (ep.rulings_mentioning || []).map((r) => r.file.slice(6, 9)).join(" "));
+const ep109 = await call("canon_episode", { episode: "109" });
+const felix = (ep109.blocks || []).find((b) => /FELIX/i.test(b.file));
+const charBlocks = (ep109.blocks || []).filter((b) => /\/Characters\//i.test(b.file));
+check("canon_episode 109: character-file blocks are all beats (Proctor's Felix catch)", charBlocks.length > 0 && charBlocks.every((b) => b.kind === "beat" && b.to_line - b.from_line <= 12), (felix ? "Felix L" + felix.from_line + "-" + felix.to_line + " " + felix.text.length + "ch; " : "no Felix block; ") + charBlocks.length + " char blocks, max span " + Math.max(0, ...charBlocks.map((b) => b.to_line - b.from_line)));
+check("canon_episode 109: total block text under 70K chars", ep109.total_block_chars > 20000 && ep109.total_block_chars < 70000, ep109.total_block_chars + " chars");
 const epCode = await call("canon_episode", { episode: "S2E04", include_mentions: false });
 check("canon_episode accepts S2E04 form", !epCode.error && /S2E04/.test(epCode.episode) && epCode.blocks_found >= 3, epCode.error ? epCode.error.slice(0, 120) : epCode.episode + " " + epCode.blocks_found + " blocks");
 const epBad = await call("canon_episode", { episode: "banana" });
