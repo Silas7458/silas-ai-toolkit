@@ -1458,7 +1458,11 @@ server.tool(
             // plus the 260 characters of the same paragraph that come after it.
             const sAt = lines[i].indexOf(s);
             const tail = sAt >= 0 ? lines[i].slice(sAt + s.length, sAt + s.length + 260) : "";
-            const isRecord = RECORD_RE.test(s) || /^\s*\[(DEAD|SUPERSEDED|ANSWERED|re-ruled|re-aged|retired)/i.test(tail) || /\[DEAD|\[SUPERSEDED|\[ANSWERED|\[re-ruled|\[re-aged/i.test(tail.slice(0, 120));
+            // a DEAD list or a "supersedes (old numbers)" clause earlier in the same paragraph governs the
+            // sentences after it (00V's own quotation of the superseded 00R numbers read as live otherwise)
+            const head = sAt > 0 ? lines[i].slice(0, sAt) : "";
+            const headIsRecord = /\b(DEAD|dead)\b\s*\(recorded|\bDEAD\b.*:|\bSUPERSEDES?\b|\bsupersedes\b|\bkept as the record\b|\bthe old\b|\bformerly\b/.test(head.slice(-400));
+            const isRecord = RECORD_RE.test(s) || headIsRecord || /^\s*\[(DEAD|SUPERSEDED|ANSWERED|re-ruled|re-aged|retired)/i.test(tail) || /\[DEAD|\[SUPERSEDED|\[ANSWERED|\[re-ruled|\[re-aged/i.test(tail.slice(0, 120));
             if (isRecord) recordSentences++;
             const bucket = isRecord ? records : facts;
             for (const rule of CLAIM_RULES) {
