@@ -1,0 +1,15 @@
+{
+  "name": "obsidian-canon-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server giving Claude Desktop (Proctor) back-end read access to THE LAST ROMAN canon mirror / Obsidian vault: list, read, grep, topic research, Drive-id lookup, outline, link graph, git history/diff, image captions, lr-pull refresh, plus optional read-only Obsidian CLI passthrough. No UI activity, works with Obsidian closed.",
+  "main": "server.js",
+  "scripts": {
+    "selftest": "node selftest.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.0"
+  }
+}
