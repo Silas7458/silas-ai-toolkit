@@ -61,6 +61,8 @@ REGISTRY = [
     "curved Sasanian", "curved sword", "the curved sword", "small flat gold guard", "Mardin's spatha", "Mardin’s spatha", "spatha in Mardin",
     # 00W R-178 (6 Sept 2026) ruled the sword's dimensions and steel; the "not ruled" wording of the same morning is retired
     "LENGTH: NOT RULED", "no blade or overall length exists", "not to be borrowed", "Sasanian sword, pattern-welded",
+    # pulad is named first for his steel (the author's word); the same-afternoon "crucible-wootz" shorthand is retired
+    "crucible-wootz", "crucible pulad (wootz)",
 ]
 
 def load_live():

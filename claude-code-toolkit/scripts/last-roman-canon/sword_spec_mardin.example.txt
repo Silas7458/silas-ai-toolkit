@@ -3,6 +3,7 @@
 
 ## THE NUMBERS — 00W R-178 [A — author, 6 Sept 2026]
 **Overall length: 39 inches.**
+**Steel: PULAD — the Persian crucible steel, the pulad version of crucible wootz** (THE STEEL, below).
 **Blade: 33 inches** long, **2 inches** wide at the shoulder, **double-edged, with a very slight taper to the point.**
 **Handle and pommel together: 6 inches.**
 **Scabbard: just over 34 inches** — long enough to cover and protect the 33-inch blade.
@@ -16,15 +17,19 @@ The blade length is the same 33 inches as the Weyland spatha (00T R-151) — by 
 **“mardin Belt and sword.png”** and **“Mardin Belt and sword and bowcase.png”** — how it hangs. [A — image, 2 Sept 2026]
 The finished pictures that show it correctly, read against the references on 6 Sept 2026: “Mardin solo standing”, “mardin riding with-sword-FINAL”, “mardin-arch2-FINAL”, “mardin-gallop-uk-c2-FINAL”, “mardin-on horse solo-sword in”, “mardin-solo on horse handle-only-removed”.
 
-## THE STEEL — 00W R-178 [A]
-**Crucible pulad — wootz steel.** Not pattern-welded, not folded, not a twisted core: a cast crucible steel whose figure is IN the metal. The surface carries the **watered pattern of the reference image**: tight, flowing light-and-dark bands that curl into whorls and eyes like a fingerprint or a contour map, with ladder-like ripples where the bands stack; no straight lines anywhere in the figure. On the drawn sword it reads as a fine, faint, all-over mottling under the polish, brightest along the median ridge.
-What it is NOT: the Weyland spatha’s pattern-welded blade with its serpent-twist core running in the fuller (00T R-151). If a render shows a twisted-rope figure down the middle of Mardin’s blade, it is the wrong sword.
+## THE STEEL — PULAD, THE PERSIAN CRUCIBLE STEEL — 00W R-178 [A; H]
+**PULAD** (Middle Persian pōlāwad; Persian pūlād / fūlād; Arabic fūlādh; Russian bulat) is the Persian word for CRUCIBLE STEEL — and the name of the Persian and Khorasan tradition of making it. The class is the one the West later called WOOTZ (an English corruption of the Kannada ukku, the South Indian ingot traded west) and, later still, “Damascus.” The author’s ruling: the blade is the PULAD version of crucible wootz steel — Persian, not Indian; the word Mardin himself would use. [A — R-178; H]
+What that means in the metal: a hypereutectoid steel (roughly 1.5 percent carbon) cast as a solid ingot in a sealed clay crucible, then forged at a low, patient heat so the iron carbides gather into bands; etched, the bands show as the watered figure the Persians called JOWHAR, “the jewel.” The figure is IN the steel, not welded into it. The Persian and Central Asian workshops reached the ingot their own ways — at Merv in Khorasan by CO-FUSION, wrought iron melted together with cast iron in the crucible; at Chahak in Iran by carburizing bloomery iron in the crucible — where the South Indian wootz tradition carburized wrought iron with plant matter: one class of steel, regional traditions of making it, which is why the scholarship keeps “pulad” and “wootz” as separate regional labels. The precise Persian term for the watered kind is PŪLĀD-E JOWHARDĀR, “jewelled steel.” [H — Feuerbach et al. 2007, On the origin of the terms wootz, hinduwani and pulad; Feuerbach & Merkel on Merv; Alipour & Rehren on Chahak; al-Kindi on swords (firind = the figure); Verhoeven & Pendray on the banding]
+The pattern of THIS blade is the author’s reference image, “MARDIN — the blade steel — pulad-wootz crucible pattern reference”: tight flowing light-and-dark bands curling into whorls and eyes like a fingerprint or a contour map, ladder-like ripples where the bands stack, no straight lines — in the Persian pattern vocabulary a NETTED figure (jowhardār-e moshabbak, woodgrain running both ways) with WAVY passages (mavvāj), of the dark-ground Khorasan family — NOT the stepped ladder (qerq nardebān, “Mohammed’s ladder”), NOT the straight-lined sham stripes, NOT a rose. [H — Khorasani, Persian pattern vocabulary] On the drawn sword it reads as a fine, faint, all-over mottling under the polish, brightest along the median ridge. [A — image]
+Historical footing: a late-Sasanian sword from the Dailaman region in the British Museum (WA 135747), sixth to seventh century, is proven crucible steel by metallography; Zosimos in the third century says the Indian crucible process was also used by the Persians; Indian and “Seric” steel is in the trade record from the first century; the excavated crucible workshops (Merv, Akhsiket, Chahak) are ninth century and later. So a fifth-century pulad sword in a Persian-court cavalry engineer’s hand is a plausible elite object, exactly the right place and class. ONE HONEST CAVEAT, recorded so nobody “corrects” the show later: the analysed Sasanian blade is crucible steel but shows NO visible watering (its carbides never organized into bands), and the spectacular etched jowhar is best attested from later centuries — the watered figure on Mardin’s blade is the AUTHOR’S RULING and the show’s choice, and it stands. [H — Lang, Craddock & Simpson, British Museum; Simpson, IAMS 21; Feuerbach, IAMS 25]
+What it is NOT: the Weyland spatha’s pattern-welded blade — strips of iron and steel folded, twisted and forge-welded, the serpent-twist core running in the fuller (00T R-151). A pulad blade is forged from ONE crucible ingot: no weld seams, no twist, no layers, no chevrons, no separate welded-on edges. If a render shows a twisted-rope figure down the middle of Mardin’s blade, or stacked laminations, it is the wrong sword and the wrong steel.
+For the smith or the art department, in one sentence: “Persian patterned crucible steel — pūlād-e jowhardār — forged from a single high-carbon crucible ingot at a controlled low red heat (below the temperature that would dissolve the carbides; roughly 900 down to 680 degrees C in reconstructions); polished and etched so fine silver-grey cementite bands stand against a dark ground as an organic netted, wavy watered figure; no laminations, no weld seams, no twisted rods, no patterned core.” [H — Verhoeven & Pendray reconstructions]
 
 ## THE BLADE
 **STRAIGHT.** Double-edged. 33 inches. Two inches wide at the shoulder, with a very slight taper to a spear-like point — the edges run nearly parallel for most of the length and close only near the tip. [A — R-178; image]
 **Never curved.** “Curved Sasanian sword” was a straggler in the season documents (flagged 28 Aug, retired 6 Sept 2026); Sasanian cavalry swords were straight and so is his. [A; H]
 A raised median ridge runs the length of the blade (visible in the unsheathed reference). [image]
-The watered wootz figure covers the whole blade (THE STEEL, above). [A — R-178; image]
+The watered pulad figure (jowhar) covers the whole blade (THE STEEL, above). [A — R-178; image]
 Proportion in the reference: the hilt is about one-fifth of the whole sword — 6 inches against 39. [A — R-178; image]
 
 ## THE HILT (blade to pommel) — 6 inches, handle and pommel together
@@ -49,14 +54,14 @@ Drawn with the right hand across the body; raised in the right hand in every mou
 2. **39 inches overall; 33-inch blade, 2 inches wide; 6-inch hilt; scabbard just over 34 inches** (00W R-178). Never resized to the actor or the shot.
 3. **Straight, never curved.**
 4. **No cross-guard** — never quillons.
-5. **Crucible pulad / wootz steel with the watered pattern** — never a twisted-core pattern-welded figure.
+5. **PULAD — Persian crucible steel — with the watered jowhar pattern**; “wootz” is the Western name for the class, “Damascus” a later one; never a twisted-core pattern-welded figure.
 6. **Gold scale-work** hilt and scabbard fittings; **green** scabbard. No wood, no bone, no brass collars.
 7. The at-a-glance test for a wrong render: a redwood boat guard, a ribbed bone grip, a redwood mushroom pommel with a brass button, or a serpent-twist core down the blade in Mardin’s hand — any one of those and the picture is a Weyland spatha, and wrong. (Length will not tell them apart: both blades are 33 inches.)
 8. Any note that calls one of his renders “non-canon on the sword” must name the reference image it was compared against. (On 6 Sept 2026 a note that had never been checked against the images sent the author to redo renders that were correct.)
 
 ## PROVENANCE
 The Persian sword he learned to ride and fight with at the Sasanian court (433–450) — “the long Persian sword and the composite bow” — carried home to Armenia in 450–451, where to his family he looked and sounded Persian (“a Persian sword, Persian military clothing”), and out again to Britannia: the eastern blade the Visual Reference Index approved on 29 July as “quietly foreign at a Roman table, exactly Mardin.” [A — CHARACTER HISTORY; 00P; character file §9]
-Weyland never made it and never remakes it. It stands outside the sword-of-the-seat lineage. Crucible steel of this kind was made in the East, not at the Sanctuary’s forge. [A — 00W R-174, R-178; character file §9]
+Weyland never made it and never remakes it. It stands outside the sword-of-the-seat lineage. Pulad was made in Persia and Khorasan and traded from India — never at the Sanctuary’s forge, which welds and folds. [A — 00W R-174, R-178; character file §9]
 
 ## RECORD
 29 July 2026 — Visual Reference Index #4 approves the Persian blade on sight.
@@ -64,4 +69,5 @@ Weyland never made it and never remakes it. It stands outside the sword-of-the-s
 2 Sept 2026 — the sword object images and the belt images; 00T R-155 amended names it: “green scabbard, gold scale-work hilt, no cross-guard” at the left hip.
 5 Sept 2026 — 00W R-174: his own sword, never a Weyland spatha; Seat 3 the green seat.
 6 Sept 2026 — the character file’s “spatha raised” reading of his renders corrected as a misreading; “curved” retired from every live document; this page created as the single object authority (S#328).
-6 Sept 2026, later — 00W R-178, the author: 39 inches overall, 33-inch blade, 2 inches wide, double-edged with a very slight taper, 6-inch handle and pommel, crucible pulad / wootz steel with the given watered pattern, scabbard just over 34 inches; the pattern reference image added to this folder; the three sword images re-supplied by the author and confirmed identical to the copies here.
+6 Sept 2026, later — 00W R-178, the author: 39 inches overall, 33-inch blade, 2 inches wide, double-edged with a very slight taper, 6-inch handle and pommel, PULAD — the Persian crucible steel, the pulad version of crucible wootz — with the given watered pattern, scabbard just over 34 inches; the pattern reference image added to this folder; the three sword images re-supplied by the author and confirmed identical to the copies here.
+6 Sept 2026, later still — the pulad / wootz distinction researched and written in (THE STEEL): pulad is the Persian word and the Persian co-fusion tradition; wootz the Western name for the Indian ingot and the class; jowhar the pattern; the British Museum’s late-Sasanian crucible-steel sword is the historical footing.
