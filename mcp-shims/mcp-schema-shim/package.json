@@ -1,0 +1,10 @@
+{
+  "name": "mcp-schema-shim",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generic JSON Schema dialect relabeller (draft-07 -> 2020-12) for stdio MCP servers, so Claude Desktop accepts their tool calls",
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "2026.8.31"
+  }
+}
