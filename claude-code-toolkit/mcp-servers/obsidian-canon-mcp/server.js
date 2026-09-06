@@ -16,6 +16,7 @@
 //   canon_history   git log of the mirror (what changed, when), optional per-file
 //   canon_diff      git diff of a file between two pulls
 //   canon_images    search the 215 image captions + Drive links
+//   canon_lint      the canon lint (retired wordings still live; version-line defects) - also run by every real pull
 //   canon_pull      lr-pull: refresh the mirror from Drive (the ONLY write; commit + push, one-way)
 //
 // OPTIONAL (only when Obsidian is already running; strict read-only, no-UI whitelist):
@@ -1379,9 +1380,9 @@ const COLOR_WORDS = "gold|golden|purple|silver|orange|yellow|black|red|blue|gree
 const SEASON_SPAN = "S[1-4](?:" + DASH + "S[1-4])?";
 const CLAIM_RULES = [
   { fact: "born (year)", re: /\bborn\s+(?:c\.?\s*|~\s*|about\s*|circa\s*)?(\d{3})\b/gi, value: (m) => m[1] },
-  { fact: "age at a point", re: /\b(\d{1,2})\s+(?:at|by)\s+(?:the\s+)?((?:S?[1-4]E\d{2}|E\d{1,2}|\d{3})\b|Badon|the supper|the pilot|the catastrophe|E1\b|101\b)/gi, value: (m) => m[1] + " at " + m[2] },
+  { fact: "age at a point", re: /\b(\d{1,2})\s+(?:at|by)\s+(?:the\s+)?((?:S?[1-4]E\d{2}|E\d{1,2}|\d{3})\b|Badon|the supper|the pilot|the catastrophe|E1\b|101\b)/gi, value: (m) => m[1] + " at " + m[2], guard: (s) => !/\b(census|souls)\b|~\d/i.test(s) },
   { fact: "age stated", re: /\b(?:aged?|is|now)\s+(\d{2})\b(?=[\s,.;)]|$)(?![\d-])/gi, value: (m) => m[1], guard: (s) => /\b(age|aged|years? old|old)\b/i.test(s) },
-  { fact: "dies / falls (episode)", re: /\b(?:dies|died|death|falls|fell|killed|is killed|slain)\b[^.;]{0,50}?\b(?:at|in|by)?\s*((?:S[1-4]E\d{2})|[1-4]\d{2})\b/gi, value: (m) => m[1] },
+  { fact: "dies / falls (episode)", re: /\b(?:dies|died|death|falls|fell|killed|is killed|slain)\b[^.;,]{0,50}?\b(?:at|in|by)?\s*((?:S[1-4]E(?:0[1-9]|10))|[1-4](?:0[1-9]|10))\b/gi, value: (m) => m[1] },
   { fact: "killed by (who)", re: /\b(?:killed by|dies at|slain by)\s+([A-Z][a-z]+)(?:'s hand)?\b/g, value: (m) => m[1] },
   { fact: "kills (who)", re: /\b([A-Z][A-Za-z]+)\s+kills\s+([A-Z][A-Za-z]+)\b/g, value: (m) => m[1] + " kills " + m[2] },
   { fact: "survives", re: new RegExp("\\bsurviv(?:es|ed|al)\\b[^.;]{0,40}?\\b(" + SEASON_SPAN + "|the series|Season (?:One|Two|Three)|\\d{3})\\b", "gi"), value: (m) => m[1] },
@@ -1402,9 +1403,45 @@ const CLAIM_RULES = [
 const PROXIMITY = 90;
 // tighter windows for facts that travel in lists ("Felix silver, Ambrosius purple, Gallus green")
 const NEAR_BY_FACT = { "seat color / draco color": 35, "column / slot": 35, horse: 45, "seat number": 35 };
+// S#328: ruling citations, session tags, dates and version tokens are blanked (same length, so match indexes still
+// address the original sentence) before any claim rule runs - "(00W R-175)" is not "dies at 175", "R-159" is not an
+// episode, "5 Sept 2026" is not an age.
+const CITATION_RE = /\b00[A-Z](?:-ADD)?\s+R-\d{1,3}[a-z]?(?:\s*[\/,]\s*R-\d{1,3}[a-z]?)*|\bR-\d{1,3}[a-z]?\b|\bS#\d{1,4}\b|\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)[a-z]*\.?\s+20\d{2}\b|\bv\d+\.\d+(?:\.\d+)?\b/g;
+function stripCitations(s) {
+  return s.replace(CITATION_RE, (m) => " ".repeat(m.length));
+}
+// the people of the show (the hunt-principals list + the names that share their sentences): a person-fact in a
+// sentence belongs to the NEAREST of these named BEFORE the match, never to a name that merely follows it
+const PRINCIPAL_NAMES = ["Valerius", "Ambrosius", "Uthr", "Uther", "Mardin", "Elen", "Helena", "Dacus", "Felix", "Portarius", "Maro", "Cato", "Cassian", "Gallus", "Weyland", "Lanceanus", "Lancelot", "Africanus", "Galaad", "Galahad", "Percennius", "Percival", "Drustan", "Tristan", "Hengist", "Hengest", "Vortigern", "Wipped", "Wulfhere", "Aelle", "Brutus", "Lucia", "Lucius", "Corvus", "Sibylla", "Lady", "Younger Brother", "Aesc", "Avitus", "Bedivere", "Gawain", "Mordred"];
+const PRINCIPAL_RE = new RegExp("\\b(" + PRINCIPAL_NAMES.map((n) => esc(fold(n))).join("|") + ")\\b", "gi");
+const PERSON_FACTS = new Set(["born (year)", "age at a point", "age stated", "dies / falls (episode)", "killed by (who)", "survives"]);
+const LIST_GLUE_RE = /\b(and|or|are|is|all|both|the same|as|with|beside|plus|i|ii|iii|iv|the|his|her|their|younger|elder)\b/gi;
+function nearestPrincipalIsEntity(before, nameRe) {
+  const fb = fold(before);
+  const hits = [...fb.matchAll(PRINCIPAL_RE)];
+  if (!hits.length) return null; // no person named before the match - caller decides
+  const last = hits[hits.length - 1];
+  if (nameRe.test(last[0])) return true;
+  // the entity sits earlier in the window: only a bare LIST of names between it and the match keeps the claim
+  const mine = [...fb.matchAll(new RegExp(nameRe.source, "gi"))];
+  if (!mine.length) return false;
+  const m = mine[mine.length - 1];
+  const between = fb.slice(m.index + m[0].length).replace(PRINCIPAL_RE, "").replace(LIST_GLUE_RE, "");
+  return /^[\s,;\u00b7&()\-\u2014\u2013]*$/.test(between);
+}
 function nearEntity(sentence, matchIndex, nameRe, fact) {
   const span = NEAR_BY_FACT[fact] || PROXIMITY;
   const before = sentence.slice(Math.max(0, matchIndex - span), matchIndex);
+  if (PERSON_FACTS.has(fact)) {
+    const verdict = nearestPrincipalIsEntity(before, nameRe);
+    if (verdict !== null) return verdict;
+    // nobody named before the match: a name right after it counts only if it is the first person after
+    const after = sentence.slice(matchIndex, matchIndex + 40);
+    const first = fold(after).match(PRINCIPAL_RE);
+    // ... and only inside the same clause: "falls S2E07) \u00b7 AULUS FELIX" is the previous man's roster entry,
+    // "dies S3E06 alongside Felix" is another man's death
+    return !!first && nameRe.test(first[0]) && !/\b(and|with|by|under|alongside|beside|before|after|than)\b/i.test(after.slice(0, first.index + 1)) && !/[\u00b7;)\]|]/.test(after.slice(0, first.index));
+  }
   if (nameRe.test(fold(before))) return true;
   // name after the match inside a short clause ("dies at 110, Hengist ...") - allow 40 chars
   const after = sentence.slice(matchIndex, matchIndex + 40);
@@ -1434,7 +1471,7 @@ server.tool(
       const files = scopeFiles({ scope: "canonical", live_only, ext: "txt" }).filter((r) => (include_rulings !== false || !/^canon\/00[A-Z]/.test(r.path)) && !/THE-LAST-ROMAN-Transcript-/i.test(r.path));
       const facts = new Map(); // fact -> Map(value -> {count, docs:Set, examples:[]})
       const records = new Map(); // same shape, for sentences that are RECORDS of dead values (DEAD / superseded / retired ...)
-      const RECORD_RE = new RegExp("\\b(DEAD|dead|superseded|SUPERSEDED|retired|RETIRED|struck|re-aged|re-ruled|re-cut|recut|patched|corrected|was \\d|no longer|formerly|the old|old profile|old arithmetic|is moot|withdrawn|dead material|kill log|ARCHIVED|archived|had missed|version \\d|^v\\d\\.)\\b|\\[DEAD|\\u2014 dead|- dead|^v\\d\\.[\\dx]");
+      const RECORD_RE = new RegExp("\\b(DEAD|dead|superseded|SUPERSEDED|supersedes|SUPERSEDES|retired|RETIRED|struck|stale|STALE|fixed|Version \\d|previously|Previously|PREVIOUSLY|NO LONGER|re-aged|re-ruled|re-cut|recut|patched|corrected|was \\d|no longer|formerly|the old|old profile|old arithmetic|is moot|withdrawn|dead material|kill log|ARCHIVED|archived|had missed|version \\d|^v\\d\\.)\\b|\\[DEAD|\\u2014 dead|- dead|^v\\d\\.[\\dx]");
       let sentencesScanned = 0;
       let recordSentences = 0;
       const perDoc = new Map();
@@ -1465,14 +1502,20 @@ server.tool(
             const isRecord = RECORD_RE.test(s) || headIsRecord || /^\s*\[(DEAD|SUPERSEDED|ANSWERED|re-ruled|re-aged|retired)/i.test(tail) || /\[DEAD|\[SUPERSEDED|\[ANSWERED|\[re-ruled|\[re-aged/i.test(tail.slice(0, 120));
             if (isRecord) recordSentences++;
             const bucket = isRecord ? records : facts;
+            const sc = stripCitations(s);
             for (const rule of CLAIM_RULES) {
-              if (rule.guard && !rule.guard(s)) continue;
+              if (rule.guard && !rule.guard(sc)) continue;
               rule.re.lastIndex = 0;
               let m;
-              while ((m = rule.re.exec(s))) {
+              while ((m = rule.re.exec(sc))) {
                 const v = rule.value(m);
                 if (!v) continue;
-                if (!rule.profile && !nearEntity(s, m.index, nameRe, rule.fact)) continue;
+                const lastGroup = [...m].slice(1).filter((g) => g != null).pop();
+                if (lastGroup) {
+                  const gAt = m.index + m[0].lastIndexOf(lastGroup);
+                  if (/\b(not|NOT|Not|never|NEVER|Never|no longer|NO LONGER)\b[^,;.]{0,14}$/.test(sc.slice(Math.max(0, gAt - 22), gAt))) continue;
+                }
+                if (!rule.profile && !nearEntity(sc, m.index, nameRe, rule.fact)) continue;
                 if (rule.fact === "kills (who)" && !nameRe.test(fold(v))) continue;
                 if (!bucket.has(rule.fact)) bucket.set(rule.fact, new Map());
                 const fm = bucket.get(rule.fact);
@@ -1780,12 +1823,46 @@ server.tool(
   }
 );
 
+server.tool(
+  "canon_lint",
+  "CANON LINT: every retired wording (harvested from the corpus's own DEAD lists + the hand-kept REGISTRY in _tools/lint.py) that still sits on a LIVE line of a live doc, plus duplicate / out-of-order version lines and unclosed '[Was:' brackets. Record lines (DEAD / SUPERSEDED / [Was: / changelog / a bracket citing the superseding ruling) are skipped; a long line is judged per hit in a window. Runs automatically at the end of every real canon_pull / canon_fold (the pull summary carries its TOTAL line); call this for the full list. Advisory - a hit is a candidate straggler for a human read, never a verdict; a residue of record-only hits in the 00-series rulings docs is normal.",
+  {
+    doc: z.string().optional().describe("Only hits whose document path contains this text"),
+    phrase: z.string().optional().describe("Only hits for this retired phrase"),
+    max_hits: z.number().optional().describe("Default 200"),
+  },
+  async ({ doc, phrase, max_hits }) => {
+    try {
+      const r = await run(PYTHON_EXE, [path.join(VAULT, "_tools", "lint.py"), "--json"], { timeout: 180000, env: { PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" }, label: "canon lint" });
+      const d = JSON.parse(r.stdout);
+      let hits = d.hits || [];
+      if (doc) hits = hits.filter((h) => fold(h.doc).includes(fold(doc)));
+      if (phrase) hits = hits.filter((h) => fold(h.phrase).includes(fold(phrase)));
+      const byDoc = {};
+      for (const h of hits) byDoc[h.doc] = (byDoc[h.doc] || 0) + 1;
+      const cap = max_hits || 200;
+      return ok({
+        total_hits: (d.hits || []).length,
+        shown: Math.min(hits.length, cap),
+        version_defects: d.version_defects || [],
+        dead_phrases_harvested: d.dead_phrases,
+        registry_phrases: d.registry,
+        hits_by_doc: byDoc,
+        hits: hits.slice(0, cap),
+        note: "Record lines are already excluded. Read each hit in place before calling it a straggler; the lint is a tripwire, not a judge.",
+      });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+);
+
 // lr-pull runs 30 s to several minutes; MCP clients time out around 60 s, so the pull is a background
 // job: the first call starts it and waits up to wait_seconds; later calls (status=true) report progress.
 let PULL_JOB = null;
 
 function pullSummary(text) {
-  return text.split(/\r?\n/).filter((l) => /new|updated|removed|FAILED|nothing to commit|pushed|dry|would|error|Traceback/i.test(l)).slice(-25);
+  return text.split(/\r?\n/).filter((l) => /new|updated|removed|FAILED|nothing to commit|pushed|dry|would|error|Traceback|lint|straggler|VERSION/i.test(l)).slice(-25);
 }
 
 function startPull(dry_run, full) {

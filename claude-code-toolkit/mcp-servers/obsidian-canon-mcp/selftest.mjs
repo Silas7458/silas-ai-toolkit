@@ -38,10 +38,10 @@ const expected = [
   "canon_info", "canon_list", "canon_read", "canon_grep", "canon_topic", "canon_lookup", "canon_outline",
   "canon_graph", "canon_history", "canon_diff", "canon_images", "canon_pull", "canon_semantic", "canon_embed",
   "canon_section", "canon_outline_text", "canon_episode",
-  "canon_ruling", "canon_rulings", "canon_claims", "canon_fold",
+  "canon_ruling", "canon_rulings", "canon_claims", "canon_fold", "canon_lint",
   "obsidian_search", "obsidian_cli",
 ];
-check("all 23 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
+check("all 24 tools registered", expected.every((n) => names.includes(n)) && names.length === expected.length, names.length + " tools");
 
 // rulings index
 const r68 = await call("canon_ruling", { id: "R-68" });
@@ -66,6 +66,29 @@ const ambBorn = (amb.conflicts || []).find((c) => c.fact === "born (year)");
 const ambRecBorn = (amb.dead_value_records || []).find((c) => c.fact === "born (year)");
 check("canon_claims Ambrosius: live values are 441 / 49; dead 438/443/47 are in records, not conflicts (post-cascade 4 Sept)", !!ambBorn && ambBorn.values[0].value === "441" && !ambBorn.values.some((v) => v.value === "438" && v.count > 1) && (!ambAge || !ambAge.values.some((v) => /^47 at Badon/i.test(v.value) && v.count > 2)) && !!ambRecBorn && ambRecBorn.values.some((v) => v.value === "438" || v.value === "443") && amb.record_sentences_excluded > 20, "live born: " + (ambBorn ? ambBorn.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "-") + " | live age: " + (ambAge ? ambAge.values.slice(0, 4).map((v) => v.value + "x" + v.count).join(",") : "-") + " | records excluded=" + amb.record_sentences_excluded);
 check("canon_claims keeps location as profile, not conflict", !(amb.conflicts || []).some((c) => /location/.test(c.fact)) && (amb.profile || []).some((p) => /location/.test(p.fact)), "");
+
+// S#328 - the false-positive classes the S#327 hunt surfaced: (a) a ruling citation read as an episode
+// ("re-hilted ... (00W R-175)" -> dies at 175; "R-159" -> 159); (b) a neighbour's "born c. 417 / 43 at the supper"
+// filed under whoever shares the sentence; (c) another man's death episode filed under a bystander.
+const EPI = /^(S[1-4]E(0[1-9]|10)|[1-4](0[1-9]|10))$/;
+const gal = await call("canon_claims", { entity: "Gallus" });
+const galDies = ((gal.conflicts || []).find((c) => /dies/.test(c.fact)) || { values: [] }).values.map((v) => v.value);
+const galSingles = (gal.single_source_claims || []).filter((x) => /dies/.test(x.fact)).map((x) => x.value);
+check("canon_claims Gallus: every death value is an episode code (no 175 / 159 / 460 from citations or years)", !gal.error && galDies.concat(galSingles).every((v) => EPI.test(v)) && !galDies.includes("S3E06"), galDies.concat(galSingles).join(",") || "(none)");
+const fel = await call("canon_claims", { entity: "Felix", aliases: ["Aulus Felix"] });
+const felDies = ((fel.conflicts || []).find((c) => /dies/.test(c.fact)) || { values: [] }).values.map((v) => v.value).concat((fel.single_source_claims || []).filter((x) => /dies/.test(x.fact)).map((x) => x.value));
+check("canon_claims Felix: Gallus's S1E08 and Portarius's 202 in the same sentence are not his", !fel.error && !felDies.includes("S1E08") && !felDies.includes("202") && !felDies.includes("460"), felDies.join(",") || "(none)");
+const val = await call("canon_claims", { entity: "Valerius", aliases: ["Valerius Flavius"], max_examples: 12 });
+const valAge = ((val.conflicts || []).find((c) => c.fact === "age at a point") || { values: [] }).values;
+const valAgeEx = valAge.flatMap((v) => v.examples || []).map((e) => e.sentence);
+check("canon_claims Valerius: 'Lucius III born c. 417 - the same year as Valerius - 43 at the supper' is not his claim", !val.error && !valAgeEx.some((t) => /Lucius III born|placed DACUS as/i.test(t)) && !valAge.some((v) => /^73 at Badon|^49 at 306/.test(v.value)), valAge.map((v) => v.value + "x" + v.count).join(",") || "(no age conflict)");
+const dac = await call("canon_claims", { entity: "Dacus", aliases: ["Sebastian Dacus"] });
+const dacDies = ((dac.conflicts || []).find((c) => /dies/.test(c.fact)) || { values: [] }).values.map((v) => v.value).concat((dac.single_source_claims || []).filter((x) => /dies/.test(x.fact)).map((x) => x.value));
+check("canon_claims Dacus: no death episode at all (he survives; 460 and 108 were neighbours' facts)", !dac.error && dacDies.length === 0, dacDies.join(",") || "(none)");
+const lint = await call("canon_lint", { max_hits: 5 });
+check("canon_lint runs lint.py --json and returns the straggler report", !lint.error && typeof lint.total_hits === "number" && Array.isArray(lint.version_defects) && lint.version_defects.length === 0 && lint.registry_phrases > 50 && Array.isArray(lint.hits) && lint.hits.length <= 5, lint.error ? lint.error.slice(0, 120) : "hits=" + lint.total_hits + " registry=" + lint.registry_phrases + " shown=" + lint.shown);
+const lintDoc = await call("canon_lint", { doc: "ONE PAGER", max_hits: 50 });
+check("canon_lint doc filter narrows to one document", !lintDoc.error && lintDoc.shown <= lintDoc.total_hits && Object.keys(lintDoc.hits_by_doc || {}).every((k) => /ONE PAGER/i.test(k)), "shown=" + lintDoc.shown + " docs=" + Object.keys(lintDoc.hits_by_doc || {}).length);
 
 // fold trigger (status only - a real fold is exercised by canon_pull above)
 const foldSt = await call("canon_fold", { status: true });

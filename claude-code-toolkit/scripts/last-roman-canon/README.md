@@ -9,6 +9,8 @@ Silas's live corpus; adapt them.
   character-file paragraph) is judged per hit in a window around it instead of being skipped whole: that is how
   "the son watching the father" hid for three weeks behind a DEAD word 1,500 characters away on the same line.
   Also flags duplicate / out-of-order version lines, a footer that disagrees with its header, unclosed "[Was:".
+- `pull.py` - the one-way Drive -> mirror -> git pull; since S#328 it runs `lint.py` itself after every real pull, so the
+  MCP's canon_pull / canon_fold (which call this script, not the batch file) print the same straggler count.
 - `push_doc_text.py` - replace a Google Doc's whole body from a marked-up text file (delete range -> ~6K UTF-16
   insertText chunks in reverse -> reset styles -> headings/bold -> re-fetch and diff; exit 1 on mismatch).
 - `cascade_helper_00W2.py` - the shared exact-string cascade helper: replace_all (dry count against the mirror first,
