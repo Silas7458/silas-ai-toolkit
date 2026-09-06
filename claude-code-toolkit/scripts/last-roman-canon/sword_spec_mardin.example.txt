@@ -1,0 +1,53 @@
+# MARDIN’S SASANIAN SWORD — THE OBJECT
+**Read before any render, prompt, storyboard, caption or scene that shows his sword.** This is the ONE sword Mardin Afzar carries, from the slave caravan at 101 to Badon. It is not a Weyland spatha and never was (00W R-174, 5 Sept 2026). Everything about it is built from THIS page and the reference images beside it in this folder — never from memory, and never from a sentence in some other document. If a picture or a sentence anywhere disagrees with this page, the picture or the sentence is wrong. Written 6 Sept 2026 (S#328) on the author’s instruction that the description of this object is never again lost or misread.
+
+## THE REFERENCE IMAGES (this folder)
+**“Mardin Sassanian sword unsheathed.png”** — the whole sword, drawn. [A — image, 2 Sept 2026]
+**“Mardin Sassanian sword sheathed.png”** — the sword in its scabbard. [A — image, 2 Sept 2026]
+**“Mardin Sassanian sword handle only.png”** — the museum photograph of a Sasanian hilt the object is drawn from. [A — historical anchor, 31 Aug 2026]
+**“mardin Belt and sword.png”** and **“Mardin Belt and sword and bowcase.png”** — how it hangs. [A — image, 2 Sept 2026]
+The finished pictures that show it correctly, read against the references on 6 Sept 2026: “Mardin solo standing”, “mardin riding with-sword-FINAL”, “mardin-arch2-FINAL”, “mardin-gallop-uk-c2-FINAL”, “mardin-on horse solo-sword in”, “mardin-solo on horse handle-only-removed”.
+
+## THE BLADE
+**STRAIGHT.** Double-edged. Long — a cavalryman’s sword: the “long Persian sword” of the author’s CHARACTER HISTORY. **Never curved.** “Curved Sasanian sword” was a straggler in the season documents (flagged 28 Aug, retired 6 Sept 2026); Sasanian cavalry swords were straight and so is his. [A — image; the author’s history; H]
+A faint median line runs the length of the blade (visible in the unsheathed reference). [image]
+**Pattern-welded:** the surface carries the watered, mottled figure of folded steel. [A — image; character file §9]
+Tapers to a spear-like point, not a rounded one. [image]
+Proportion in the reference: the hilt is about one-fifth of the whole sword. [image]
+**LENGTH — NOT RULED.** No blade length and no overall length for this sword exists anywhere in the corpus (searched 6 Sept 2026: every live document, the rulings 00A–00W, the verbatim dictation, the transcripts, the session records, the Drive file descriptions). The only 33-inch blade in canon is the WEYLAND SPATHA (00T R-151) — that number is NOT his and must not be borrowed. Until the author states it, render the blade as a long straight cavalry sword at the proportions of “Mardin Sassanian sword unsheathed”. **AUTHOR TO STATE: blade length · overall length · width at the shoulder.**
+
+## THE HILT (blade to pommel)
+**NO CROSS-GUARD.** No quillons — the Sasanian form (00T R-155 amended, 2 Sept 2026: “gold scale-work hilt, no cross-guard”). Where the blade meets the hilt there is only a flat, narrow gold collar the width of the blade’s shoulder; it does not project sideways. Never draw a cross-guard on this sword. [A — ruling; image]
+**Gold scale-work in bands:** a scale-work band above the collar; a dark, finely ribbed grip section (dark horn or wood, vertically ribbed); a second scale-work band; and a scale-work **pommel cap** with a scalloped lower edge and a small raised crown at the top. Three gold scale bands over the dark grip sections (character file §9). The scale-work reads gold with bright silver rims in the museum photograph. [image; §9]
+The hilt is straight and in line with the blade; there is no pommel knob, only the cap. [image]
+**What it is NOT:** not a redwood boat-shaped guard, not a ribbed white bone grip, not a redwood mushroom pommel, not brass collars. Those four things are the WEYLAND SPATHA (00T R-151) and belong to every rider except Ambrosius and Mardin.
+
+## THE SCABBARD
+**Dark GREEN leather**, straight, the blade’s full length. [A — image; 00T R-155 amended “green scabbard”]
+A gold scale-work **throat** (locket) carrying a P-shaped suspension mount on the outer face; a gold scale-work **mid-band** carrying a second P-shaped mount; a long gold scale-work **chape** covering roughly the lower third and ending in a scale-work tip. Two suspension loops — the two P-mounts. [image; §9]
+The P-mounts are the Sasanian two-point suspension: two slings from the belt, so the scabbard hangs at a slant and the hilt sits forward for a mounted draw. [image; H]
+**When the sword is drawn, the scabbard stays on the belt: a green sheath with a gold throat and chape, EMPTY.** It is not a second sword and must never be rendered, captioned or described as one. [A — image, read 6 Sept 2026]
+
+## HOW HE WEARS IT
+At the **LEFT hip**, from the studded dark belt with the brass sun-disc buckle, on two slings to the two P-mounts; the **bowcase** with the strung composite bow hangs at the **right** hip. [A — 00T R-155 amended; “Mardin Belt and sword and bowcase”]
+Left means the wearer’s own left (00U R-156).
+Drawn with the right hand across the body; raised in the right hand in every mounted and standing render. [image]
+
+## THE RULES
+1. **ONE sword, always** — from the caravan at 101 to Badon. The built 110 text: “the EASTERN SWORD he carried out of Persia (the only Dragon with no spatha).” 00W R-174: his own Sasanian sword and no Weyland blade, short or long, ever. No sword-pass in either direction: he is permanent core and his seat never falls vacant.
+2. **Straight, never curved.**
+3. **No cross-guard** — never quillons.
+4. **Gold scale-work** hilt and scabbard fittings; **green** scabbard. No wood, no bone, no brass collars.
+5. The at-a-glance test for a wrong render: a redwood boat guard, a ribbed bone grip, a redwood mushroom pommel with a brass button, or a 33-inch blade in Mardin’s hand — any one of those and the picture is a Weyland spatha, and wrong.
+6. Any note that calls one of his renders “non-canon on the sword” must name the reference image it was compared against. (On 6 Sept 2026 a note that had never been checked against the images sent the author to redo renders that were correct.)
+
+## PROVENANCE
+The Persian sword he learned to ride and fight with at the Sasanian court (433–450) — “the long Persian sword and the composite bow” — carried home to Armenia in 450–451, where to his family he looked and sounded Persian (“a Persian sword, Persian military clothing”), and out again to Britannia: the eastern blade the Visual Reference Index approved on 29 July as “quietly foreign at a Roman table, exactly Mardin.” [A — CHARACTER HISTORY; 00P; character file §9]
+Weyland never made it and never remakes it. It stands outside the sword-of-the-seat lineage. [A — 00W R-174; character file §9]
+
+## RECORD
+29 July 2026 — Visual Reference Index #4 approves the Persian blade on sight.
+31 Aug 2026 — the museum hilt photograph (historical anchor) dropped by the author.
+2 Sept 2026 — the sword object images and the belt images; 00T R-155 amended names it: “green scabbard, gold scale-work hilt, no cross-guard” at the left hip.
+5 Sept 2026 — 00W R-174: his own sword, never a Weyland spatha; Seat 3 the green seat.
+6 Sept 2026 — the character file’s “spatha raised” reading of his renders corrected as a misreading; “curved” retired from every live document; this page created as the single object authority (S#328).

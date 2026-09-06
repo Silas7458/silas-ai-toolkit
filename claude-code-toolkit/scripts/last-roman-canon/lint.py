@@ -57,6 +57,8 @@ REGISTRY = [
     "Snape", "Torquemada", "cold, cultured, methodical, cruel",
     "SECOND BEREAVEMENT", "both men who loved her", "nameless veteran", "finally runs out",
     "ARMY (S3)", "S3 ARMY", "the bloody, inconclusive clash",
+    # S#328 - Mardin's Sasanian sword: straight, no cross-guard, never a spatha (see the object spec Doc in his folder)
+    "curved Sasanian", "curved sword", "the curved sword", "small flat gold guard", "Mardin's spatha", "Mardin’s spatha", "spatha in Mardin",
 ]
 
 def load_live():
