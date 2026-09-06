@@ -1414,7 +1414,8 @@ function stripCitations(s) {
 // sentence belongs to the NEAREST of these named BEFORE the match, never to a name that merely follows it
 const PRINCIPAL_NAMES = ["Valerius", "Ambrosius", "Uthr", "Uther", "Mardin", "Elen", "Helena", "Dacus", "Felix", "Portarius", "Maro", "Cato", "Cassian", "Gallus", "Weyland", "Lanceanus", "Lancelot", "Africanus", "Galaad", "Galahad", "Percennius", "Percival", "Drustan", "Tristan", "Hengist", "Hengest", "Vortigern", "Wipped", "Wulfhere", "Aelle", "Brutus", "Lucia", "Lucius", "Corvus", "Sibylla", "Lady", "Younger Brother", "Aesc", "Avitus", "Bedivere", "Gawain", "Mordred"];
 const PRINCIPAL_RE = new RegExp("\\b(" + PRINCIPAL_NAMES.map((n) => esc(fold(n))).join("|") + ")\\b", "gi");
-const PERSON_FACTS = new Set(["born (year)", "age at a point", "age stated", "dies / falls (episode)", "killed by (who)", "survives"]);
+// seats and colors belong to a person too (Proctor, 6 Sept: "Seat 3" from a Mardin line filed under Gallus)
+const PERSON_FACTS = new Set(["born (year)", "age at a point", "age stated", "dies / falls (episode)", "killed by (who)", "survives", "seat number", "seat color / draco color"]);
 const LIST_GLUE_RE = /\b(and|or|are|is|all|both|the same|as|with|beside|plus|i|ii|iii|iv|the|his|her|their|younger|elder)\b/gi;
 function nearestPrincipalIsEntity(before, nameRe) {
   const fb = fold(before);
