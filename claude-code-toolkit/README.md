@@ -87,6 +87,7 @@ claude-code-toolkit/
 │   ├── tandem-strategist.md           # Strategic integrity & drift detection agent
 │   └── precedent-hunter.md            # Searches history for prior solutions
 ├── scripts/                           # Infrastructure scripts (sanitized)
+│   └── last-roman-canon/              # canon lint + Docs cascade tooling (S#327-S#328)
 │   ├── build_valuation_synthesis.py   # Valuation tool builder
 │   ├── update_valuation_model_v3.py   # Valuation model updater
 │   ├── claude-config-guard.ps1        # Hourly config integrity check (schtasks)
