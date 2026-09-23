@@ -28,6 +28,10 @@
 // headings kept and punctuation escaped by Google (never grep exact strings in .md).
 //
 // v1.0.0 (S#326 2026-09-04)
+// v1.4.0 (S#343 2026-09-23): --http mode. `node server.js --http` serves the SAME tools over MCP
+//   Streamable HTTP on 127.0.0.1:8790 so an ngrok tunnel can publish them as a claude.ai custom
+//   connector (Proctor VOICE mode, mobile, web). stdio (Claude Desktop) stays the default; nothing
+//   about it changed. See run-http.ps1 / stop-http.ps1 / smoke-http.mjs.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -35,8 +39,9 @@ import { z } from "zod";
 import { execFile, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
-const VERSION = "1.0.0";
+const VERSION = "1.4.0";
 
 const VAULT = path.resolve(
   process.env.OBSIDIAN_CANON_VAULT || "C:/Users/silas/Documents/last-roman/canon-mirror"
@@ -56,6 +61,13 @@ const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
 const NON_LIVE_RE = /(^|\/)(_ARCHIVE[^/]*|_SESSION LOG[^/]*|20 - HISTORICAL[^/]*|NOTES FROM BROTHER[^/]*)(\/|$)/i;
 
 const BIG_BUFFER = 64 * 1024 * 1024;
+
+// HTTP mode (S#343). Auth: claude.ai's custom-connector form has no header field, so the secret rides
+// in the path (/mcp/<secret>); Authorization: Bearer <secret> is accepted too. The secret lives OUTSIDE
+// this repo (the tool dir is mirrored to the public silas-ai-toolkit): ~/.obsidian-canon/http-secret.
+const HTTP_MODE = process.argv.includes("--http") || !!process.env.OBSIDIAN_CANON_HTTP_PORT;
+const HTTP_PORT = parseInt(process.env.OBSIDIAN_CANON_HTTP_PORT || "8790", 10);
+const HTTP_SECRET_FILE = path.join(os.homedir(), ".obsidian-canon", "http-secret");
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -125,14 +137,18 @@ for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   } catch (e) {}
 }
 // Claude Desktop closing = our stdin closes. That is the reliable shutdown signal on Windows.
-process.stdin.on("end", () => {
-  killAllChildren();
-  process.exit(0);
-});
-process.stdin.on("close", () => {
-  killAllChildren();
-  process.exit(0);
-});
+// (stdio mode only: the HTTP instance is launched by Task Scheduler with no usable stdin and must
+// not exit on it; it dies on SIGTERM / taskkill from stop-http.ps1 and takes its children with it.)
+if (!HTTP_MODE) {
+  process.stdin.on("end", () => {
+    killAllChildren();
+    process.exit(0);
+  });
+  process.stdin.on("close", () => {
+    killAllChildren();
+    process.exit(0);
+  });
+}
 
 function run(exe, args, opts) {
   const o = opts || {};
@@ -690,6 +706,11 @@ async function git(args) {
 // server
 // ---------------------------------------------------------------------------
 
+// Wrapped in a factory (S#343): stdio builds ONE server for its one transport, exactly as before;
+// HTTP builds a fresh server + transport per request (stateless Streamable HTTP, SDK guidance) so
+// concurrent voice / desktop / web sessions never collide on JSON-RPC request ids. All module-level
+// state (CHILDREN registry, QMD, caches) is shared by every instance.
+function buildServer() {
 const server = new McpServer(
   { name: "obsidian-canon", version: VERSION },
   {
@@ -2117,5 +2138,102 @@ server.tool(
   }
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+return server;
+}
+
+if (!HTTP_MODE) {
+  const server = buildServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+} else {
+  const { StreamableHTTPServerTransport } = await import(
+    "@modelcontextprotocol/sdk/server/streamableHttp.js"
+  );
+  const http = await import("node:http");
+  let secret = process.env.OBSIDIAN_CANON_HTTP_SECRET || "";
+  if (!secret) {
+    try {
+      secret = fs.readFileSync(HTTP_SECRET_FILE, "utf8").trim();
+    } catch (e) {}
+  }
+  if (!secret || secret.length < 16) {
+    console.error("obsidian-canon --http: no secret. Put one in " + HTTP_SECRET_FILE + " (>= 16 chars).");
+    process.exit(2);
+  }
+  const MCP_PATH = "/mcp/" + secret;
+  const JSON_405 = JSON.stringify({
+    jsonrpc: "2.0",
+    error: { code: -32000, message: "Method not allowed." },
+    id: null,
+  });
+  const httpServer = http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url || "/", "http://localhost");
+      if (url.pathname === "/healthz") {
+        res.writeHead(200, { "content-type": "text/plain" });
+        res.end("ok " + VERSION);
+        return;
+      }
+      const authz = String(req.headers.authorization || "");
+      const pathOk = url.pathname === MCP_PATH || url.pathname === MCP_PATH + "/";
+      const bearerOk = url.pathname === "/mcp" && authz === "Bearer " + secret;
+      if (!pathOk && !bearerOk) {
+        // 404, not 401: a 401 would send claude.ai into OAuth discovery, and scanners learn nothing.
+        res.writeHead(404, { "content-type": "text/plain" });
+        res.end("not found");
+        return;
+      }
+      if (req.method === "POST") {
+        let body = "";
+        for await (const chunk of req) body += chunk;
+        let parsed;
+        try {
+          parsed = JSON.parse(body);
+        } catch (e) {
+          res.writeHead(400, { "content-type": "text/plain" });
+          res.end("bad json");
+          return;
+        }
+        const server = buildServer();
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: undefined,
+          enableJsonResponse: true,
+        });
+        res.on("close", () => {
+          transport.close().catch(() => {});
+          server.close().catch(() => {});
+        });
+        await server.connect(transport);
+        await transport.handleRequest(req, res, parsed);
+        return;
+      }
+      // Stateless: no server-initiated SSE stream (GET) and no sessions to DELETE.
+      res.writeHead(405, { "content-type": "application/json", allow: "POST" });
+      res.end(JSON_405);
+    } catch (e) {
+      console.error("obsidian-canon --http: " + (e && e.stack ? e.stack : e));
+      if (!res.headersSent) {
+        res.writeHead(500, { "content-type": "text/plain" });
+        res.end("error");
+      }
+    }
+  });
+  httpServer.keepAliveTimeout = 65000;
+  httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
+    console.error(
+      "obsidian-canon " + VERSION + " --http listening on http://127.0.0.1:" + HTTP_PORT + "/mcp/<secret>"
+    );
+  });
+  const shutdown = () => {
+    try {
+      httpServer.close();
+    } catch (e) {}
+    killAllChildren();
+    process.exit(0);
+  };
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"]) {
+    try {
+      process.on(sig, shutdown);
+    } catch (e) {}
+  }
+}

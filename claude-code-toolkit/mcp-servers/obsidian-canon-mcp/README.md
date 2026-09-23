@@ -30,6 +30,32 @@ node selftest.mjs        # 31 checks over real MCP stdio, exit 0 = all passed
 
 Restart Claude Desktop after editing the config.
 
+## HTTP mode - Proctor VOICE mode / claude.ai custom connector (S#343, 23 Sept 2026)
+
+Local stdio servers are invisible to Claude voice mode, mobile and web: those surfaces only see
+connectors attached to the account. `--http` serves the SAME tools over MCP Streamable HTTP so an
+ngrok tunnel can publish them as a custom connector. stdio stays the default; nothing about the
+Desktop path changed.
+
+```
+node server.js --http                 # 127.0.0.1:8790, stateless, fresh McpServer per request
+node smoke-http.mjs                   # local checks: 404 on a wrong secret, tools/list, Butterfly Dragon
+node smoke-http.mjs <public url>      # the same through the tunnel
+powershell -File run-http.ps1         # server + ngrok, hidden; what the logon task runs
+powershell -File stop-http.ps1        # kills both trees (never Proctor's stdio instance)
+```
+
+- Auth: claude.ai's connector form has no header field, so the secret rides in the path:
+  `https://<domain>/mcp/<secret>` (`Authorization: Bearer <secret>` on `/mcp` also works). Wrong
+  secret = plain 404 (a 401 would push claude.ai into OAuth discovery). The secret is NOT in this
+  repo: `~/.obsidian-canon/http-secret` (env `OBSIDIAN_CANON_HTTP_SECRET` overrides).
+- ngrok: `tools/ngrok/ngrok.exe`; static domain in `~/.obsidian-canon/ngrok-domain.txt`; the full
+  connector URL is written to `~/.obsidian-canon/public-url.txt` on every start; logs beside it.
+- Scheduled Task "Obsidian Canon HTTP" (at logon, interactive, hidden, no time limit, restarts x3).
+  Edit it with Set-ScheduledTask only - `schtasks /change` wipes the run-as credentials.
+- Read-only exposure: the only writes are `canon_pull` / `canon_fold`, and fold needs local gws creds.
+- Env: `OBSIDIAN_CANON_HTTP_PORT` (default 8790) also switches HTTP mode on.
+
 Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian.com),
 `OBSIDIAN_CANON_PYTHON` (python for pull.py).
 
@@ -110,8 +136,9 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
 
 ## Process hygiene (no orphans)
 
-- No daemons, no HTTP servers, no Bun. One child process per call (qmd / python / git / obsidian),
-  gone when it returns.
+- No daemons, no Bun. One child process per call (qmd / python / git / obsidian), gone when it
+  returns. The one sanctioned long-lived process is the `--http` instance Silas asked for (S#343);
+  its children obey the same registry and `stop-http.ps1` kills it with its tree.
 - Every child is registered; when the server's stdin closes (Claude Desktop quit) or it exits, every
   registered child is killed with its whole tree (`taskkill /T /F`). Timeouts kill the tree too.
 - The only long-lived process is the MCP server itself, owned by Claude Desktop.
@@ -120,4 +147,6 @@ Env overrides: `OBSIDIAN_CANON_VAULT` (vault path), `OBSIDIAN_CLI_EXE` (Obsidian
 
 - `server.js` - the server (ASCII only, ES module)
 - `selftest.mjs` - MCP stdio client that exercises every tool
+- `smoke-http.mjs` - MCP Streamable HTTP client for `--http` mode (local or through the tunnel)
+- `run-http.ps1` / `stop-http.ps1` - the logon task's launcher and its kill switch
 - `package.json` - deps: `@modelcontextprotocol/sdk`, `zod`
