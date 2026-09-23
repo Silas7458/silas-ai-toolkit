@@ -48,7 +48,10 @@ check("initialize over Streamable HTTP", true, (Date.now() - t0) + " ms");
 
 const tools = await client.listTools();
 const names = tools.tools.map((t) => t.name);
-check("tools/list >= 23 tools", names.length >= 23, names.length + " tools");
+check("tools/list = 21 read-only tools", names.length === 21, names.length + " tools");
+for (const n of ["canon_pull", "canon_fold", "canon_embed"]) {
+  check("write tool NOT exposed over HTTP: " + n, !names.includes(n));
+}
 for (const n of ["canon_info", "canon_topic", "canon_read", "canon_section", "canon_semantic", "canon_rulings"]) {
   check("tool present: " + n, names.includes(n));
 }

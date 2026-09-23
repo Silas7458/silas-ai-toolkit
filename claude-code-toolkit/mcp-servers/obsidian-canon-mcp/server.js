@@ -2144,9 +2144,22 @@ server.tool(
 );
 
 // ---- entry point: everything below this line is removed by canon-cli/derive-core.mjs ----
-function buildServer() {
+// --http is a READ-ONLY surface (Silas, S#343: "just using it as an understanding layer and a
+// searching layer"). The tools that change anything are never registered there, so voice / mobile /
+// web cannot even see them; the stdio instance in Claude Desktop keeps all 24. Override with
+// OBSIDIAN_CANON_HTTP_EXCLUDE="a,b,c" (empty string = expose everything).
+const HTTP_EXCLUDE = new Set(
+  (process.env.OBSIDIAN_CANON_HTTP_EXCLUDE ?? "canon_pull,canon_fold,canon_embed")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean)
+);
+function buildServer(exclude) {
   const s = new McpServer(SERVER_INFO, SERVER_OPTIONS);
-  for (const t of TOOLS) s.tool(t.name, t.description, t.schema, t.handler);
+  for (const t of TOOLS) {
+    if (exclude && exclude.has(t.name)) continue;
+    s.tool(t.name, t.description, t.schema, t.handler);
+  }
   return s;
 }
 
@@ -2203,7 +2216,7 @@ if (!HTTP_MODE) {
           res.end("bad json");
           return;
         }
-        const server = buildServer();
+        const server = buildServer(HTTP_EXCLUDE);
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: undefined,
           enableJsonResponse: true,
@@ -2230,7 +2243,8 @@ if (!HTTP_MODE) {
   httpServer.keepAliveTimeout = 65000;
   httpServer.listen(HTTP_PORT, "127.0.0.1", () => {
     console.error(
-      "obsidian-canon " + VERSION + " --http listening on http://127.0.0.1:" + HTTP_PORT + "/mcp/<secret>"
+      "obsidian-canon " + VERSION + " --http listening on http://127.0.0.1:" + HTTP_PORT + "/mcp/<secret>" +
+        " (read-only: " + (HTTP_EXCLUDE.size ? [...HTTP_EXCLUDE].join(", ") + " not exposed" : "nothing excluded") + ")"
     );
   });
   const shutdown = () => {
