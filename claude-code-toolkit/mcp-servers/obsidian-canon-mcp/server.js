@@ -706,24 +706,29 @@ async function git(args) {
 // server
 // ---------------------------------------------------------------------------
 
-// Wrapped in a factory (S#343): stdio builds ONE server for its one transport, exactly as before;
-// HTTP builds a fresh server + transport per request (stateless Streamable HTTP, SDK guidance) so
-// concurrent voice / desktop / web sessions never collide on JSON-RPC request ids. All module-level
-// state (CHILDREN registry, QMD, caches) is shared by every instance.
-function buildServer() {
-const server = new McpServer(
-  { name: "obsidian-canon", version: VERSION },
-  {
-    instructions: [
+const SERVER_INFO = { name: "obsidian-canon", version: VERSION };
+const INSTRUCTIONS = [
       "THE LAST ROMAN canon mirror (Obsidian vault) - read access for Proctor. Google Drive is the source of truth; this mirror is one-way and generated.",
       "For 'explain X' questions: canon_topic first (ranks every live doc), then canon_read the top docs IN FULL (whole=true or page through with offset until done=true). Do not answer from snippets when the doc is available.",
       "Text search: canon_grep (literal by default, regex=true for patterns). Meaning search: canon_semantic (plain-language questions, no exact words needed; local BM25 + vectors + rerank). .txt is the canonical text of a Google Doc; .md is the same Doc with headings, punctuation escaped by Google.",
       "Live-only is the default everywhere (archives, session logs, historical and Brother's notes are excluded unless live_only=false).",
       "canon_lookup returns the Drive id for any doc so edits can be made on Drive with gdrive-ops; then canon_pull to refresh the mirror.",
       "Nothing here touches the Obsidian window. The obsidian_* tools only work when Obsidian is already running and are read-only.",
-    ].join("\n"),
-  }
-);
+].join("\n");
+const SERVER_OPTIONS = { instructions: INSTRUCTIONS };
+
+// Tool registry (S#343): every server.tool(...) below records into TOOLS, and buildServer() at the
+// bottom replays them onto a real McpServer - once for stdio, once per request for --http (stateless
+// Streamable HTTP wants a fresh server + transport per request so concurrent voice / desktop / web
+// sessions never collide on JSON-RPC ids). Every helper and cache (RULINGS, PULL_JOB, CHILDREN, QMD)
+// stays module-level and is shared by all instances. canon-cli/derive-core.mjs exports TOOLS and
+// INSTRUCTIONS from here and cuts everything below the entry-point marker.
+const TOOLS = [];
+const server = {
+  tool(name, description, schema, handler) {
+    TOOLS.push({ name, description, schema, handler });
+  },
+};
 
 server.tool(
   "canon_info",
@@ -2138,7 +2143,11 @@ server.tool(
   }
 );
 
-return server;
+// ---- entry point: everything below this line is removed by canon-cli/derive-core.mjs ----
+function buildServer() {
+  const s = new McpServer(SERVER_INFO, SERVER_OPTIONS);
+  for (const t of TOOLS) s.tool(t.name, t.description, t.schema, t.handler);
+  return s;
 }
 
 if (!HTTP_MODE) {
