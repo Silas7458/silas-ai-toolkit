@@ -42,6 +42,7 @@ claude-code-toolkit/
   playbooks/         Operational playbooks (context conservation, lessons learned, video analysis)
   protocols/         Coordination protocols (agent delegation, session management, notifications)
   scripts/           Infrastructure scripts (config guard, briefing compiler, webhook setup)
+  skills/            CLI skills + Windows wrappers: rea (Reverse Engineer Anything), craft-anything-cli (Craft Anything)
   memory/            Memory system templates
   examples/          Real-world usage patterns (agent delegation, research sprints, document processing)
 ```

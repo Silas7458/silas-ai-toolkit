@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# REA (Reverse Engineer Anything) CLI - bash-side twin of rea.cmd so `rea` resolves in Git Bash.
+# Private Node 22.23.5 (REA needs >=22.23.4; system Node stays 22.19.0). Installed S#406.
+export PATH="$HOME/tools/node-22.23.5:$PATH"
+exec "$HOME/tools/node-22.23.5/node.exe" "$HOME/tools/rea/node_modules/rea-agents/scripts/rea.mjs" "$@"

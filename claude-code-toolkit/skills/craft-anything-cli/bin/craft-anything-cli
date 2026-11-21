@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Craft Anything CLI - bash-side twin of craft-anything-cli.cmd so it resolves in Git Bash. Installed S#406.
+exec "$HOME/tools/craft-anything/craft-anything-0.6.1-windows-x64-portable/craft-anything-cli.exe" "$@"
